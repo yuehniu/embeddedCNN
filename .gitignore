@@ -1,0 +1,6 @@
+# Build Directory
+./Release
+./Debug
+
+# Project
+*.sdx
