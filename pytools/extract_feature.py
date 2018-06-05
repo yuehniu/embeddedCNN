@@ -46,6 +46,7 @@ net.blobs['data'].reshape(1, 3, 224, 224)
 image = caffe.io.load_image(caffe_home + 'examples/images/cat.jpg')
 transformer_image = transformer.preprocess('data', image)
 plt.imshow(image)
+net.blobs['data'].data[...] = transformer_image;
 output = net.forward()
 output_prob = output['prob'][0]
 print '[INFO] Predicted class is:', output_prob.argmax()
