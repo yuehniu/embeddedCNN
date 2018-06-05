@@ -2,15 +2,20 @@
 Release/
 Debug/
 .Xil/
-.cproject/
-.project/
 .metadata/
 RemoteSystemsTempFiles/
 ip_cache/
 
+# Data
+data/
+
 # Project
 *.sdx
+*.cproject
+*.project
 
 # Log
 *.log
 
+# swap file
+*.swp
