@@ -1,6 +1,16 @@
 # Build Directory
-./Release
-./Debug
+Release/
+Debug/
+.Xil/
+.cproject/
+.project/
+.metadata/
+RemoteSystemsTempFiles/
+ip_cache/
 
 # Project
 *.sdx
+
+# Log
+*.log
+
