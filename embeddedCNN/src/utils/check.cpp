@@ -16,11 +16,15 @@
 
 #include <iostream>
 #include <fstream>
+#include <stdlib.h>
 #include "../../include/utils/check.h"
 
 
 bool dataflow_check(Dtype * Ref, Dtype * Res, int Cnt)
 {
+  std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
+            ": Check dataflow between DDR and FPGA" << std::endl;
+            
   bool all_same = true;
   std::ofstream log("check_df.log");
   for (int i = 0; i < Cnt; i++){
@@ -43,3 +47,4 @@ bool dataflow_check(Dtype * Ref, Dtype * Res, int Cnt)
 
   return all_same;
 }
+

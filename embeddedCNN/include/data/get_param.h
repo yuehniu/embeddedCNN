@@ -11,13 +11,15 @@
  
         Yue Niu
 */
+#include "../common.h"
+
 #ifndef __GET_PARAM_H__
 #define __GET_PARAM_H__
 
-// Read weights
-Dtype * get_weights(void);
+/* Computing param size for a model */
+int param_size();
 
-// Read bias
-Dtype * get_bias(void);
+// Read parameter
+void get_params(Dtype *Params, int ReadSize);
 
 #endif

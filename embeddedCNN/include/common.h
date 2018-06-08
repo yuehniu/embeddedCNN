@@ -15,17 +15,27 @@
 #ifndef __COMMON_H__
 #define __COMMON_H__
 
-// Data type
-typedef float Dtype;
+#include "hls_half.h"
 
-// Feature params
+/* Data type */
+typedef half Dtype;
+
+/* Network definition for VGG16 */
+#define CLASS_NUM 1000
+#define CONV_LAYER_NUM 13
+#define FC_LAYER_NUM 5
 #define IMG_W 224
 #define IMG_H 224
 
-// Tile params
-#define TILE_SIZE 14
+/* Tile params */
+// Input channel tile size
+#define ITILE 16
+// Output channel title size
+#define OTILE 32
+// Feature map title size
+#define FTILE 21
 
-// Number of Tile loops
-#define TILE_NUM (3 * (IMG_W / TILE_SIZE) * (IMG_H / TILE_SIZE)) 
+/* Number of Tile loops */
+#define TILE_NUM (3 * (IMG_W / FTILE) * (IMG_H / FTILE)) 
 
 #endif /* __COMMON_H__ */

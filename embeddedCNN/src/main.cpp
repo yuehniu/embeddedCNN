@@ -24,6 +24,7 @@
 #include "sds_lib.h"
 
 #include "../include/fpga/cnn_fpga.h"
+#include "../include/fpga/conv_fpga.h"
 #include "../include/cpu/cnn_cpu.h"
 #include "../include/common.h"
 #include "../include/data/get_data.h"
@@ -32,41 +33,38 @@
 
 int main(int argc, char* argv[])
 {
-  std::cout << "Embedded CNN implementation in ZCU102" << std::endl;
+  std::cout << "Embedded CNN implementation in Xilinx FPGA" << std::endl;
+  std::cout << "Platform: Xilinx ZCU102" << std::endl;
+  std::cout << "CPU: ARM A53" << std::endl;
+  std::cout << "NetModel: VGGNet-16" << std::endl;
+  
   // Get input data
   Dtype * in_rgbImg =
     (Dtype *) sds_alloc(3 * IMG_W * IMG_H * sizeof(Dtype));
-  if (NULL == in_rgbImg){
-    std::cout << "[Error] " << __FUNCTION__ << ", " << __LINE__ <<
-                 ": Memory alloc for input data fail" << std::endl;
-    return -1;
-  }
+  mem_check(in_rgbImg);
   memset(in_rgbImg, 0, 3 * IMG_W * IMG_H * sizeof(Dtype));
   get_img(in_rgbImg);
 
   // Alloc output memory
-  Dtype * out_feat =
-    (Dtype *) sds_alloc(3 * IMG_W * IMG_H * sizeof(Dtype));
-  if (NULL == out_feat){
-    std::cout << "[Error] " << __FUNCTION__ << ", " << __LINE__ <<
-                 ": Memory alloc for output fail" << std::endl;
-    return -1;
-  }
-  memset(out_feat, 0, 3 * IMG_W * IMG_H * sizeof(Dtype));
+  Dtype * out_logits =
+    (Dtype *) sds_alloc(CLASS_NUM * sizeof(Dtype));
+  mem_check(out_logits);
+  memset(out_logits, 0, CLASS_NUM * sizeof(Dtype));
 
   // Get parameters
+  // Set memory for params, including all weights and bias.
+  int param_buf_size = param_size();
+  Dtype *params = (Dtype *)sds_alloc(param_buf_size * sizeof(Dtype));
+  mem_check(params);
+  get_params(params, param_buf_size);
 
   // CNN in ARM CPU
 
   // CNN in FPGA 
-  std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
-            ": Start conv in Xilinx FPGA." << std::endl;
-  conv_fpga(in_rgbImg, out_feat);
+  cnn_fpga(in_rgbImg, out_logits, params);
 
   // Check dataflow
-  std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
-            ": Check dataflow between DDR and FPGA" << std::endl;
-  bool all_same = dataflow_check(in_rgbImg, out_feat, 3 * IMG_W * IMG_H);
+  bool all_same = dataflow_check(in_rgbImg, out_logits, 3 * IMG_W * IMG_H);
   if (true == all_same)
     std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__  <<
                  ": Dataflow check pass." << std::endl;
@@ -74,5 +72,6 @@ int main(int argc, char* argv[])
     std::cout << "[ERROR] " << __FUNCTION__ << ", " << __LINE__ <<
                  ": Dataflow check fail." << std::endl;
 
+  sds_free(in_rgbImg); sds_free(out_logits); sds_free(params);
   return 0;
 }

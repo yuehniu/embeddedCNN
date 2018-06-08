@@ -17,6 +17,14 @@
 
 #include "../include/common.h"
 
-void get_img(Dtype * Img);
+// Randomly init image
+void get_from_random(Dtype * Img);
+
+// Get image from file
+void get_from_file(Dtype * Img);
+
+// Specify one data fetching method
+//void (*get_img)(Dtype * ) = get_img_random;
+#define get_img get_from_file
 
 #endif
