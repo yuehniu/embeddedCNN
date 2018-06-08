@@ -41,3 +41,11 @@
   #pragma SDS data mem_attribute(A:PHYSICAL_CONTIGUOUS, B:PHYSICAL_CONTIGUOUS, C:PHYSICAL_CONTIGUOUS)
   void mmult (Dtype *A, Dtype *B, Dtype *C);
   ```
+
+  Interesting observations:
+
+    For 64x64 matrix mul and add using fp16, ARM CPU takes 14367058 cpu 
+    cycles, while Xilinx FPGA takes 165974 cpu cycles, which is 86 times more faster than ARM CPU. 
+
+    On the other side, For 64x64 matrix mul and add using fp32, ARM CPU takes 
+    627638 cpu cycles, while Xilinx FPGA takes 168804 cpu cycles, which is 3.7 times more faster than ARM CPU.
