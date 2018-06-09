@@ -69,26 +69,32 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
     if (0 == c_layer){
       std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
                   ": " << c_layer << "th convolution layer." << std::endl;
-      conv_fpga(In, bufferB, cur_params);
+      //TODO
+      int til_num = IMG_W * IMG_H / FTILE/ FTILE;
+      conv_fpga(In, bufferB, cur_params, til_num);
       cur_params += (CHNEL[0] * 3 * KERNL[0] * KERNL[0] + CHNEL[0]);
       pingpang = 1;
     }
-    std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
+    else {
+      int til_num = CHNEL[c_layer-1]  / ITILE * 
+                    SHAPE[c_layer] * SHAPE[c_layer] / FTILE/ FTILE / ;
+      std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
                  ": " << c_layer << "th convolution layer." << std::endl;
-    if (0 == pingpang)
-    {
-      conv_fpga(bufferA, cur_params, bufferB);
-      pingpang = 1;
-    }
-    else 
-    {
-      conv_fpga(bufferB, cur_params, bufferA);
-      pingpang = 0;
-    }
+      if (0 == pingpang)
+      {
+        conv_fpga(bufferA, cur_params, bufferB, til_num);
+        pingpang = 1;
+      }
+      else 
+      {
+        conv_fpga(bufferB, cur_params, bufferA, til_num);
+        pingpang = 0;
+      }
 
-    // Update pointer to parameters
-    cur_params += (CHNEL[c_layer] * CHNEL[c_layer - 1] * KERNL[0] * KERNL[0] +
-                   CHNEL[c_layer]);
+      // Update pointer to parameters
+      cur_params += (CHNEL[c_layer] * CHNEL[c_layer - 1] * KERNL[0] * KERNL[0] +
+                     CHNEL[c_layer]);
+    }
   }
 
   /* Do FC layer by layer */

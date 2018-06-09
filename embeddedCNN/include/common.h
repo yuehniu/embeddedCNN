@@ -27,13 +27,21 @@ typedef half Dtype;
 #define IMG_W 224
 #define IMG_H 224
 
-/* Tile params */
+/* Conv params */
 // Input channel tile size
 #define ITILE 16
 // Output channel title size
 #define OTILE 32
 // Feature map title size
 #define FTILE 21
+// Define buffer depth for weights
+// Note the buffer depth is closely related to kernel size,
+// input and output kernel number
+#define W_BUF_DEPTH 288
+// Define buffer depth for output
+// Note this buffer depth is also closely related to model,
+// mainly including maximum output channel number.
+#define O_BUF_DEPTH 512
 
 /* Number of Tile loops */
 #define TILE_NUM (3 * (IMG_W / FTILE) * (IMG_H / FTILE)) 

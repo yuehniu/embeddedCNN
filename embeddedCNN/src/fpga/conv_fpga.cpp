@@ -67,17 +67,67 @@ void conv_fpga(Dtype * In, Dtype * Out)
     In, pointer to input data.
     Params, pointer to weights and bias
     Out, pointer to output data.
+    TilNum, total tile number in currenly layer
 
   Note:
   
-    Currenly, real conv should be implemented.
+    in_buf mem arrangement(chnl-pos):
+    0  |0-0  |1-0  |2-0  |...|15-0  |
+    1  |0-1  |1-1  |2-1  |...|15-0  |
+    2  |0-2  |1-2  |2-2  |...|15-0  |
+       |...  |...  |...  |...|...   |
+    441|0-441|1-441|2-441|...|15-441|
+
+    out_buf mem arrangement(chnl-pos):
+       0       1       2     ...    15
+    |0-0    |1-0    |2-0    |...|15-0   |
+    |0-1    |1-1    |2-1    |...|15-0   |
+    |0-2    |1-2    |2-2    |...|15-0   |
+    |...    |...    |...    |...|...    |
+    |0-441  |0-441  |2-441  |...|15-441 |
+    |16-0   |17-0   |18-0   |...|31-0   |
+    |16-1   |17-1   |18-1   |...|31-0   |
+    |16-2   |17-2   |18-2   |...|31-0   |
+    |...    |...    |...    |...|...    |
+    |16-441 |17-441 |18-441 |...|31-441 |
+    |...    |...    |...    |...|...    |
+    |496-0  |497-0  |498-0  |...|511-0  |
+    |496-1  |497-1  |498-1  |...|511-0  |
+    |496-2  |497-2  |498-2  |...|511-0  |
+    |...    |...    |...    |...|...    |
+    |496-441|497-441|498-441|...|511-441|
+
+    w_buf mem arrangement(pos-ichnl-ochnl)
+       0      1    ...   15      16     17         31    ...   255
+    |0-0-0 |0-1-0 |...|0-15-0 |0-0-1 |0-1-1 |...|0-15-1 |...|0-15-15|
+    |1-0-0 |1-1-0 |...|1-15-0 |1-0-1 |1-1-1 |...|1-15-1 |...|1-15-15|
+    |...   |...   |...|...    |...   |...   |...|...    |...|...    |
+    |9-0-0 |9-1-0 |...|9-15-0 |9-0-1 |9-1-1 |...|9-15-1 |...|9-15-15|
+    |0-0-16|0-1-16|...|0-15-16|0-0-17|0-1-17|...|0-15-17|...|0-15-31|
+    |1-0-16|1-1-16|...|0-15-16|1-0-17|1-1-17|...|1-15-17|...|1-15-31|
+    |...   |...   |...|...    |...   |...   |...|...    |...|...    |
+    |9-0-16|9-1-16|...|0-15-16|9-0-17|9-1-17|...|9-15-17|...|9-15-31|
+    |...   |...   |...|...    |...   |...   |...|...    |...|...    |
+    
 */
-void conv_fpga(Dtype *In, Dtype *Params, Dtype *Out)
+void conv_fpga(Dtype *In, Dtype *Params, Dtype *Out, int TilNum)
 {
+  // Set on-chip buffer
   Dtype in_buf[ITILE][FTILE * FTILE];
-  Dtype out_buf[OTILE][FTILE * FTILE];
-  Dtype w_buf[OTILE * ITILE][]
+  #pragma HLS array_partition variable=in_buf block complte dim=1
+
+  Dtype out_buf[O_BUF_DEPTH][FTILE * FTILE];
+  #pragma HLS array_partition variable=out_buf cyclic factor=OTILE dim=1
+
+  Dtype w_buf[OTILE * ITILE * W_BUF_DEPTH];
+  #pragma HLS array_reshape variable=w_buf cyclic factor=ITILE*OTILE dim = 1
+
   Dtype b_buf[OTILE];
+  #pragma HLS array_partition variable=b_buf complete
+
+  // Compute total tile number
+  total_tile = 
+
   return;
 }
 

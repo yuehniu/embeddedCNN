@@ -26,7 +26,7 @@
 #pragma SDS data mem_attribute(In:PHYSICAL_CONTIGUOUS, Out:PHYSICAL_CONTIGUOUS)
 void conv_fpga(Dtype * In, Dtype * Out);
 
-void conv_fpga(Dtype *In, Dtype *Params, Dtype *Out);
+void conv_fpga(Dtype *In, Dtype *Params, Dtype *Out, int TilNum);
 
 // Read input
 void buf_read(Dtype * In, Dtype In_Buf[FTILE][FTILE]);
