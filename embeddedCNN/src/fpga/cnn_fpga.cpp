@@ -17,6 +17,7 @@
         Yue Niu
 */
 #include <iostream>
+#include <cmath>
 
 #include "sds_lib.h"
 
@@ -70,24 +71,25 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
       std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
                   ": " << c_layer << "th convolution layer." << std::endl;
       //TODO
-      int til_num = IMG_W * IMG_H / FTILE/ FTILE;
-      conv_fpga(In, bufferB, cur_params, til_num);
+      int til_num = ceil(IMG_W / FTILE) * ceil(IMG_H / FTILE);
+      conv_fpga(In, bufferB, cur_params, c_layer, til_num);
       cur_params += (CHNEL[0] * 3 * KERNL[0] * KERNL[0] + CHNEL[0]);
       pingpang = 1;
     }
     else {
-      int til_num = CHNEL[c_layer-1]  / ITILE * 
-                    SHAPE[c_layer] * SHAPE[c_layer] / FTILE/ FTILE / ;
+      int til_num = ceil(CHNEL[c_layer-1]  / ITILE) * 
+                    ceil(SHAPE[c_layer] / FTILE) * 
+                    ceil(SHAPE[c_layer] / FTILE) ;
       std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
                  ": " << c_layer << "th convolution layer." << std::endl;
       if (0 == pingpang)
       {
-        conv_fpga(bufferA, cur_params, bufferB, til_num);
+        conv_fpga(bufferA, cur_params, bufferB, c_layer, til_num);
         pingpang = 1;
       }
       else 
       {
-        conv_fpga(bufferB, cur_params, bufferA, til_num);
+        conv_fpga(bufferB, cur_params, bufferA, c_layer, til_num);
         pingpang = 0;
       }
 
