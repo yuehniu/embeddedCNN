@@ -136,7 +136,7 @@ void conv_fpga(Dtype *In, Dtype *Params, Dtype *Out,
   Dtype *in_ptr = In;
   Dtype *out_ptr = Out;
   // Set on-chip mem arrangement
-  int chnl_num = Lyr == 0 ? 3 : CHNEL[Lyr - 1]; 
+  // int chnl_num = Lyr == 0 ? 3 : CHNEL[Lyr - 1]; 
   int col_num = SHAPE[Lyr];
   // Rows to be read
   int row_num = 3;
@@ -146,31 +146,39 @@ void conv_fpga(Dtype *In, Dtype *Params, Dtype *Out,
   int last_row_valid = 1;
   int chnl_to_read = Lyr == 0 ? 3 : ITILE;
   switch (Lyr){
-    case 0, 1 : { 
+    case 0 :
+    case 1 : { 
       row_num = 3;  
       row_valid = 1;  
       last_row_valid = 1;
       break;
     }
-    case 2, 3 : {
+    case 2 :
+    case 3 : {
       row_num = 6;  
       row_valid = 2;  
       last_row_valid = 2;
       break;
     }
-    case 4, 5, 6 : {
+    case 4 :
+    case 5 :
+    case 6 : {
       row_num = 12; 
       row_valid = 4;  
       last_row_valid = 4;
       break;
     }
-    case 7, 8, 9 : {
+    case 7 :
+    case 8 :
+    case 9 : {
       row_num = 24; 
       row_valid = 8;  
       last_row_valid = 4;
       break;
     }
-    case 10, 11, 12 : {
+    case 10 :
+    case 11 :
+    case 12 : {
       row_num = 14; 
       row_valid = 16; 
       last_row_valid = 14;
@@ -185,9 +193,10 @@ void conv_fpga(Dtype *In, Dtype *Params, Dtype *Out,
   for (int til = 0; til < TilNum; til++){
   #pragma HLS DATAFLOW
     // Read input feature
-    int fst = TilNum < ChnlTilNum; 
-    int last_row = Til >= (TilNum - ChnlTilNum);
-    buf_read(in_ptr, in_buf, chnl_to_read, row_num, col_num, row_valid, fst);
+    bool fst = til < ChnlTilNum; 
+    bool last_row = til >= (TilNum - ChnlTilNum);
+    int cur_row_valid = last_row ? last_row_valid : row_valid;
+    buf_read(in_ptr, in_buf, chnl_to_read, row_num, col_num, cur_row_valid, fst);
 
     // Conditional read weight
 
@@ -234,7 +243,7 @@ void buf_read(Dtype * In, Dtype InBuf[ITILE][FTILE_W * FTILE_H],
         }
         else {
           if (r >= RowValid) 
-            InBuf[n][r * c - FTILE_W] = InBuf[n][r * c]
+            InBuf[n][r * c - FTILE_W] = InBuf[n][r * c];
           if (r >= RowNum - RowValid)
             InBuf[n][r * c] = *In++;
         }/* First line? */
