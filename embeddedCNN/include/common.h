@@ -31,9 +31,12 @@ typedef half Dtype;
 // Input channel tile size
 #define ITILE 16
 // Output channel title size
-#define OTILE 32
-// Feature map title size
-#define FTILE 21
+#define OTILE 16
+// Feature map title size(3x224)
+// This set is suitable for input with 224x224,
+// kernel size with 3x3
+#define FTILE_W 224
+#define FTILE_H 3
 // Define buffer depth for weights
 // Note the buffer depth is closely related to kernel size,
 // input and output kernel number
