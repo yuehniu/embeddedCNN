@@ -70,26 +70,27 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
     if (0 == c_layer){
       std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
                   ": " << c_layer << "th convolution layer." << std::endl;
-      //TODO
-      int til_num = ceil(IMG_W / FTILE) * ceil(IMG_H / FTILE);
-      conv_fpga(In, bufferB, cur_params, c_layer, til_num);
+      int chnl_til_num = 1;
+      int til_num = IMG_H - 1;
+      conv_fpga(In, bufferB, cur_params, c_layer, til_num, chnl_til_num);
       cur_params += (CHNEL[0] * 3 * KERNL[0] * KERNL[0] + CHNEL[0]);
       pingpang = 1;
     }
     else {
-      int til_num = ceil(CHNEL[c_layer-1]  / ITILE) * 
-                    ceil(SHAPE[c_layer] / FTILE) * 
-                    ceil(SHAPE[c_layer] / FTILE) ;
+      int chnl_til_num = ceil(CHNEL[c_layer-1] / ITILE);
+      int til_num = chnl_til_num * 
+                    ceil(SHAPE[c_layer] * SHAPE[c_layer] / FTILE_W) - 1;
+      til_num = til_num == 0 ? 1 : til_num;
       std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
                  ": " << c_layer << "th convolution layer." << std::endl;
       if (0 == pingpang)
       {
-        conv_fpga(bufferA, cur_params, bufferB, c_layer, til_num);
+        conv_fpga(bufferA, cur_params, bufferB, c_layer, til_num, chnl_til_num);
         pingpang = 1;
       }
       else 
       {
-        conv_fpga(bufferB, cur_params, bufferA, c_layer, til_num);
+        conv_fpga(bufferB, cur_params, bufferA, c_layer, til_num, chnl_til_num);
         pingpang = 0;
       }
 

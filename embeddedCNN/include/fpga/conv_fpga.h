@@ -22,19 +22,23 @@
 
 #include "../include/common.h"
 
+// Conv in Xilinx FPGA
 #pragma SDS data access_pattern(In:SEQUENTIAL, Out:SEQUENTIAL)
 #pragma SDS data mem_attribute(In:PHYSICAL_CONTIGUOUS, Out:PHYSICAL_CONTIGUOUS)
 void conv_fpga(Dtype * In, Dtype * Out);
 
-void conv_fpga(Dtype *In, Dtype *Params, Dtype *Out, int TilNum);
+void conv_fpga(Dtype *In, Dtype *Params, Dtype *Out, 
+               int Lyr, int TilNum, int ChnlTilNum);
 
 // Read input
-void buf_read(Dtype * In, Dtype In_Buf[FTILE][FTILE]);
+void buf_read(Dtype * In, Dtype InBuf[ITILE][FTILE_W * FTILE_H],
+              int ChnlNum, int RowNum, int ColNum, 
+              int RowShft, bool Fst);
 
 // Move data
-void buf_move(Dtype In_Buf[FTILE][FTILE], Dtype Out_Buf[FTILE][FTILE]);
+void buf_move(Dtype In_Buf[FTILE_W][FTILE_H], Dtype Out_Buf[FTILE_W][FTILE_H]);
 
 // Write data
-void buf_write(Dtype Out_Buf[FTILE][FTILE], Dtype *Out);
+void buf_write(Dtype Out_Buf[FTILE_W][FTILE_H], Dtype *Out);
 
 #endif /* __CONV_FPGA_H__ */
