@@ -49,3 +49,23 @@
 
     On the other side, For 64x64 matrix mul and add using fp32, ARM CPU takes 
     627638 cpu cycles, while Xilinx FPGA takes 168804 cpu cycles, which is 3.7 times more faster than ARM CPU.
+
+### 06/12/2018
+
+- Big problem encountered!
+
+  Currently, buffer for input feature was set to be 16 * 3 * 224. In the next 
+  execution cycle, a new next line will be read into the buffer, meanwhile, 2 
+  bottom line will be push upward. However, the problem is: the design will 
+  not iterate over **row**, it iterate over **input channel**. Therefore, in 
+  next execution cycle, new data from other **input channels** will be read 
+  into the buffer. The whole data will replaced by new data. When it come back
+  to the first **input channel tile**, all the previous data is gone. We have 
+  to again read the needed data from DDR. For 3x3 kernel, we have to read two 
+  tow already used data from DDR.
+
+  In order to solve this problem, I plan to design a 16 * 1 * 224 input buffer 
+  For one execution pipeline cycle, I do all the conv ops on the 16 * 1 * 224 
+  data. In normal cases, I need to calculate 2th row conv for ith row output, 
+  1th row conv for (i+1)th row output, 0th row conv for (i+2)th row output. 
+  I'll write down detailed implementation later.
