@@ -69,3 +69,15 @@
   data. In normal cases, I need to calculate 2th row conv for ith row output, 
   1th row conv for (i+1)th row output, 0th row conv for (i+2)th row output. 
   I'll write down detailed implementation later.
+
+### 06/14/2018
+
+- TIle-based loop is a bad design!
+  
+  Previously, I tired to used tile-based loop to realize a **DATAFLOW** style 
+  processing, in which all the iteration can be combined to one loop. This 
+  make **DATAFLOW** easy to realize. However, today, I realize that not all 
+  the ops was executed in the one same tile loop. Like, **buf_read**, 
+  **weight_read**, **write**, they are executed in different loop hierarchy. 
+  Therefore, it's better to go back to original row-, col- channel-based 
+  loop to conveniently arrange different ops into different loop hierarchy.
