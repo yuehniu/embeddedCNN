@@ -69,30 +69,82 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
   Dtype *cur_params = Params;
   for (int c_layer = 0; c_layer < CONV_LAYER_NUM; c_layer++)
   {
+    int w_isec = 1;
+    switch (c_layer){
+      case 0:  w_isec = 1; break;
+      case 1:
+      case 2:
+      case 4:
+      case 5:
+      case 6:  w_isec = 4; break;
+      case 3:  w_isec = 8; break;
+      case 7:
+      case 8:
+      case 9:
+      case 10:
+      case 11:
+      case 12: w_isec = 2; break;
+      default: w_isec = 1; break;
+    }
     int col_num = SHAPE[c_layer];
+    int row_num = SHAPE[c_layer];
     if (0 == c_layer){
       std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
                   ": " << c_layer << "th convolution layer." << std::endl;
-      int til_num = IMG_H;
       int chnl_to_read = 3;
-      conv_fpga(In, c_layer, til_num, chnl_to_read, col_num);
+      int isec = 1;
+      int osec = CHNEL[c_layer] / OTILE;
+      conv_fpga(In, 
+                cur_params,
+                c_layer, 
+                row_num, 
+                col_num, 
+                chnl_to_read, 
+                KERNL[c_layer], 
+                chnl_to_read, 
+                isec, 
+                CHNEL[c_layer], 
+                osec, 
+                w_isec);
       cur_params += (CHNEL[0] * 3 * KERNL[0] * KERNL[0] + CHNEL[0]);
       pingpang = 1;
     }
     else {
-      int chnl_til_num = ceil(CHNEL[c_layer-1] / ITILE);
-      int til_num = chnl_til_num * SHAPE[c_layer];
       int chnl_to_read = ITILE;
+      int isec = CHNEL[c_layer - 1] / ITILE;
+      int osec = CHNEL[c_layer] / OTILE;
       std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
                  ": " << c_layer << "th convolution layer." << std::endl;
       if (0 == pingpang)
       {
-        conv_fpga(bufferA, c_layer, til_num, chnl_to_read, col_num);
+        conv_fpga(bufferA, 
+                  cur_params,
+                  c_layer, 
+                  row_num, 
+                  col_num, 
+                  chnl_to_read, 
+                  KERNL[c_layer], 
+                  chnl_to_read, 
+                  isec, 
+                  CHNEL[c_layer], 
+                  osec, 
+                  w_isec);
         pingpang = 1;
       }
       else 
       {
-        conv_fpga(bufferB, c_layer, til_num, chnl_to_read, col_num);
+        conv_fpga(bufferB, 
+                  cur_params,
+                  c_layer, 
+                  row_num, 
+                  col_num, 
+                  chnl_to_read, 
+                  KERNL[c_layer], 
+                  chnl_to_read, 
+                  isec, 
+                  CHNEL[c_layer], 
+                  osec, 
+                  w_isec);
         pingpang = 0;
       }
 

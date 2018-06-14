@@ -23,20 +23,39 @@
 #include "../../include/common.h"
 
 // Conv in Xilinx FPGA
-#pragma SDS data access_pattern(In:SEQUENTIAL)
-#pragma SDS data mem_attribute(In:PHYSICAL_CONTIGUOUS)
-#pragma SDS data copy(In[0:TilNum*ChnlRead*ColNum])
-void conv_fpga(Dtype *In, // Variable DMA transfer length 
-               int Lyr, 
-               int TilNum, 
-               int ChnlRead, 
-               int ColNum);
+#pragma SDS data access_pattern(In:SEQUENTIAL, Param:SEQUENTIAL)
+#pragma SDS data mem_attribute(In:PHYSICAL_CONTIGUOUS, Param:PHYSICAL_CONTIGUOUS)
+#pragma SDS data copy(In[0:IChnl*RowNum*ColNum], Param[0:OChnl+IChnl*OChnl*Kern*Kern])
+void conv_fpga(Dtype *In,    // Variable DMA transfer length 
+               Dtype *Param, // Variable DMA transfer length
+               int Lyr,      // Current layer index 
+               int RowNum,   // Row number
+               int ColNum,   // Col number
+               int ChnlRead, // Input channel to read in each tile
+               int Kern,     // Kernel size
+               int IChnl,    // Input param channel to read
+               int ISec,     // Input sec number
+               int OChnl,    // Output param channel to read
+               int OSec,     // Out sec number
+               int WISec     // Input sec number in buf for each layer
+              );
 
 // Read data into InBuf
 void buf_read(Dtype * In, 
               Dtype InBuf[ITILE][FTILE_W * FTILE_H],
               int ChnlNum,
               int ColNum);
+
+// Read weight
+void weight_read(Dtype *Param, 
+                 Dtype Wbuf[OTILE * ITILE][W_BUF_DEPTH],
+                 int IChnlTil,
+                 int OChnlTil,
+                 int Kern,
+                 int Sec,
+                 bool Read);
+// Read bias
+void bias_read(Dtype *Param, Dtype Bbuf[B_BUF_DEPTH], int OChnl);
 // Write data
 // #pragma SDS data mem_attribute(Out:PHYSICAL_CONTIGUOUS)
 // #pragma SDS data access_pattern(Out_Buf:SEQUENTIAL, Out:SEQUENTIAL)

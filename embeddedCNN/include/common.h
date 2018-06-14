@@ -40,10 +40,11 @@ typedef half Dtype;
 // kernel size with 3x3
 #define FTILE_W 224
 #define FTILE_H 1
-// Define buffer depth for weights
+// Define buffer depth for weights and bias
 // Note the buffer depth is closely related to kernel size,
 // input and output kernel number
 #define W_BUF_DEPTH 288
+#define B_BUF_DEPTH 512
 // Define buffer depth for output
 // Note this buffer depth is also closely related to model,
 // mainly including maximum output channel number.

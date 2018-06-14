@@ -29,15 +29,6 @@
   In order to save data transfer bandwidth, ReLU and optional Pooling
   will be executed after convolution. 
 
-  Argument:
-    
-    In, pointer to input data.
-    Params, pointer to weights and bias
-    Out, pointer to output data.
-    Lyr, current convolution layer
-    TilNum, total tile number in current layer
-    ChnlTilNum: total channel tile number in current layer
-
   Note:
   
     in_buf mem arrangement(chnl-pos):
@@ -67,7 +58,7 @@
     v   |496-441|497-441|498-441|...|511-441|
 
     w_buf mem arrangement(pos-ichnl-ochnl)
-          0      1    ...   15      16     17         31    ...   255
+          0      1    ...   15      16     17         31    ...   512
     ^  |0-0-0 |0-1-0 |...|0-15-0 |0-0-1 |0-1-1 |...|0-15-1 |...|0-15-15|
     |  |1-0-0 |1-1-0 |...|1-15-0 |1-0-1 |1-1-1 |...|1-15-1 |...|1-15-15|
     |  |...   |...   |...|...    |...   |...   |...|...    |...|...    |
@@ -80,11 +71,19 @@
     
 */
 
-void conv_fpga(Dtype *In, 
-               int Lyr, 
-               int TilNum, 
-               int ChnlRead, 
-               int ColNum)
+void conv_fpga(Dtype *In,    // Variable DMA transfer length 
+               Dtype *Param, // Variable DMA transfer length
+               int Lyr,      // Current layer index 
+               int RowNum,   // Row number
+               int ColNum,   // Col number
+               int ChnlRead, // Input channel to read in each tile
+               int Kern,     // Kernel size
+               int IChnl,    // Input param channel to read
+               int ISec,     // Input sec number
+               int OChnl,    // Output param channel to read
+               int OSec,     // Out sec number
+               int WISec     // Input sec number in buf for each layer
+              )
 {
   // Set on-chip buffer
   Dtype in_buf[ITILE][FTILE_W * FTILE_H];
@@ -94,28 +93,57 @@ void conv_fpga(Dtype *In,
   // int fac = OTILE;
   // #pragma HLS array_partition variable=out_buf cyclic factor=fac dim=1
 
-  // Dtype w_buf[OTILE * ITILE * W_BUF_DEPTH];
-  // fac = ITILE*OTILE;
-  // #pragma HLS array_reshape variable=w_buf cyclic factor=fac dim=1
+  Dtype w_buf[OTILE * ITILE][W_BUF_DEPTH];
+  #pragma HLS array_partition variable=w_buf complete dim=1
 
-  // Dtype b_buf[OTILE];
-  // #pragma HLS array_partition variable=b_buf complete
+  Dtype b_buf[B_BUF_DEPTH];
+  #pragma HLS array_partition variable=b_buf complete
 
   /* Start Convolution */
   // int chnl_num = Lyr == 0 ? 3 : CHNEL[Lyr - 1]; 
-  for (int til = 0; til < TilNum; til++){
-  //#pragma HLS DATAFLOW
-    // Read input feature
-    buf_read(In + til * ChnlRead * FTILE_W, // incr In
-             in_buf, 
-             ChnlRead,
-             ColNum); 
+  // Read bias first
+  bias_read(Param, b_buf, OChnl);
+  Param += OChnl;
+  for (int row = 0; row < RowNum; row += FTILE_H){
+    for (int col = 0; col < ColNum; col += ColNum){
+      for (int n = 0, n_i = 0; n < IChnl; n += ITILE, n_i++) { 
+      /* Input channel */
+        // Read input feature
+        buf_read(In + (row * IChnl + n) * FTILE_W, // incr In
+                 in_buf, 
+                 ChnlRead,
+                 ColNum); 
+        /*
+        std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
+                     ": Check InBuf." << std::endl;
+        inbuf_check(In, in_buf, Lyr, row);
+        */
+        for (int m = 0, m_i = 0; m < OChnl; m += OTILE, m_i++){ 
+        /* Output channel */
+          // Conditional read weights 
+          weight_read(Param + n_i * ChnlRead * m * Kern * Kern, 
+                      w_buf, 
+                      ChnlRead,
+                      OTILE,
+                      Kern,
+                      (n_i % WISec) * OSec + m_i, // Read to which sec
+                      (row == 0 && col == 0) || (Lyr > 3)   // Whether to read
+                      );
+        }/* Output channel */  
+      } /* Input channel */
+    }
 
-    std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
-                 ": Check InBuf." << std::endl;
-    inbuf_check(In, in_buf, Lyr, til);
 
     // Conditional read weight
+    /*
+    if (0 == til || (Lyr > 3 && (til % WAgain == 0))) {
+      weight_read(Param, w_buf, ChnlRead, OTILE, Kern, SecNum);
+    }
+    else if(Lyr > 3 && (tile % WNext == 0)) {
+      w_ptr += W_BUF_DEPTH;
+      weight_read(w_ptr, w_buf, ChnlRead, OTILE, Kern, SecNum);
+    }
+    */
 
     // Conv op 
   }/* Start Convolution */
@@ -128,7 +156,7 @@ void conv_fpga(Dtype *In,
 
   Argument:
 
-    In, pointer to in_buf.
+    In, pointer to externel mem.
     InBuf, on-chip buffer.
     ChnlNum, input channels to read.
     ColNum, col number to read.
@@ -152,6 +180,58 @@ void buf_read(Dtype * In,
       }
     }
   }/* for: input channel tile */
+
+  return;
+}
+
+/*
+  Read weights from externel to w_buf
+  
+  Note:
+  
+    In this design, only a sector (like 3 * 32 * 9)
+    data was read into w_buf each cycles.
+    Moreover, in some layer, w_buf can accomodate all
+    the weights, so we needn't to reread weights from
+    external again in next few cycles.
+  
+*/
+void weight_read(Dtype *Param, 
+                 Dtype Wbuf[OTILE * ITILE][W_BUF_DEPTH],
+                 int IChnlTil, // Input channel tile to read
+                 int OChnlTil, // Output channel tile to read
+                 int Kern,     // Kernel size
+                 int Sec,      // Start sec position
+                 bool Read     // Wheter to read
+                )
+{
+  for (int m = 0; m < OChnlTil; m++) {
+   for (int n = 0; n < IChnlTil; n++) {
+     for (int k = 0; k < Kern * Kern; k++)
+     #pragma HLS PIPELINE
+       if(Read)
+         Wbuf[m * IChnlTil + n][Sec * Kern + k] = *Param++;
+   }
+  }
+
+  return;
+}
+
+/*
+  Read bias from extern to b_buf
+
+  Argument:
+  
+    Param, pointer to externel param
+    Bbuf, on-chip bias buffer
+    OChnl,output channel to read 
+*/
+void bias_read(Dtype *Param, Dtype Bbuf[B_BUF_DEPTH], int OChnl)
+{
+  for (int n = 0; n < OChnl; n++){
+  #pragma HLS PIPELINE
+    Bbuf[n] = *Param++;
+  }
 
   return;
 }
