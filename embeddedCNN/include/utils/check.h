@@ -17,6 +17,9 @@
 #ifndef __CHECK_H__
 #define __CHECK_H__
 
+#include <stdlib.h>
+#include <iostream>
+
 #include "../../include/common.h"
 
 /* Accurate data check */
@@ -32,5 +35,8 @@ inline void mem_check(Dtype *Mem)
   }
   return;
 }
+
+/* Check in_buf */
+void inbuf_check(Dtype *Ref, Dtype InBuf[ITILE][FTILE_W*FTILE_H], int Lyr, int Til);
 
 #endif

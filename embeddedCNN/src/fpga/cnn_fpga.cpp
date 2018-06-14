@@ -18,8 +18,10 @@
 */
 #include <iostream>
 #include <cmath>
+#include <stdlib.h>
 
 #include "sds_lib.h"
+#include "hls_half.h"
 
 #include "../../include/fpga/cnn_fpga.h"
 #include "../../include/fpga/conv_fpga.h"
@@ -27,9 +29,9 @@
 #include "../include/utils/check.h"
 #include "../include/common.h"
 
-extern const int SHAPE[];
-extern const int CHNEL[];
-extern const int KERNL[];
+extern const int SHAPE[18];
+extern const int CHNEL[18];
+extern const int KERNL[13];
 
 /* 
   Desc:
@@ -67,30 +69,30 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
   Dtype *cur_params = Params;
   for (int c_layer = 0; c_layer < CONV_LAYER_NUM; c_layer++)
   {
+    int col_num = SHAPE[c_layer];
     if (0 == c_layer){
       std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
                   ": " << c_layer << "th convolution layer." << std::endl;
-      int chnl_til_num = 1;
-      int til_num = IMG_H - 1;
-      conv_fpga(In, bufferB, cur_params, c_layer, til_num, chnl_til_num);
+      int til_num = IMG_H;
+      int chnl_to_read = 3;
+      conv_fpga(In, c_layer, til_num, chnl_to_read, col_num);
       cur_params += (CHNEL[0] * 3 * KERNL[0] * KERNL[0] + CHNEL[0]);
       pingpang = 1;
     }
     else {
       int chnl_til_num = ceil(CHNEL[c_layer-1] / ITILE);
-      int til_num = chnl_til_num * 
-                    ceil(SHAPE[c_layer] * SHAPE[c_layer] / FTILE_W) - 1;
-      til_num = til_num == 0 ? 1 : til_num;
+      int til_num = chnl_til_num * SHAPE[c_layer];
+      int chnl_to_read = ITILE;
       std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
                  ": " << c_layer << "th convolution layer." << std::endl;
       if (0 == pingpang)
       {
-        conv_fpga(bufferA, cur_params, bufferB, c_layer, til_num, chnl_til_num);
+        conv_fpga(bufferA, c_layer, til_num, chnl_to_read, col_num);
         pingpang = 1;
       }
       else 
       {
-        conv_fpga(bufferB, cur_params, bufferA, c_layer, til_num, chnl_til_num);
+        conv_fpga(bufferB, c_layer, til_num, chnl_to_read, col_num);
         pingpang = 0;
       }
 

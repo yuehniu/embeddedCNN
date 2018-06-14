@@ -17,47 +17,12 @@
         Yue Niu
 */
 
+#include "sds_lib.h"
+
 #include "../../include/fpga/conv_fpga.h"
+#include "../../include/common.h"
 
-/*
-  Top function for convolution in FPGA.
-  In order to save data transfer bandwidth, ReLU and optional Pooling
-  will be executed after convolution. 
-
-  Argument:
-    
-    In, pointer to input data.
-    Out, pointer to output data.
-
-  Note:
-  
-    Currently, only data copy in included to validate the data flow design.
-*/
-/*
-void conv_fpga(Dtype * In, Dtype * Out)
-{
-  Dtype in_buf[FTILE][FTILE];
-
-  Dtype out_buf[FTILE][FTILE];
-
-  Dtype * in_ptr = In;
-  Dtype * out_ptr = Out;
-  for(int tcnt = 0; tcnt < TILE_NUM; tcnt++){
-  #pragma HLS DATAFLOW
-
-    // Read input to in_buf
-    buf_read(in_ptr + tcnt * FTILE * FTILE, in_buf);
-
-    // Move in_buf to out_buf
-    buf_move(in_buf, out_buf);
-
-    // Write out_buf to Out
-    buf_write(out_buf, out_ptr + tcnt * FTILE * FTILE);
-  }
-
-  return;
-}
-*/
+#include "../../include/utils/check.h"
 
 /*
   Top function for convolution in FPGA.
@@ -114,89 +79,41 @@ void conv_fpga(Dtype * In, Dtype * Out)
     v  |...   |...   |...|...    |...   |...   |...|...    |...|...    |
     
 */
-extern const int CHNEL[];
-extern const int SHAPE[];
-void conv_fpga(Dtype *In, Dtype *Params, Dtype *Out, 
-               int Lyr, int TilNum, int ChnlTilNum)
+
+void conv_fpga(Dtype *In, 
+               int Lyr, 
+               int TilNum, 
+               int ChnlRead, 
+               int ColNum)
 {
   // Set on-chip buffer
   Dtype in_buf[ITILE][FTILE_W * FTILE_H];
-  #pragma HLS array_partition variable=in_buf block complte dim=1
+  #pragma HLS array_partition variable=in_buf complete dim=1
 
-  Dtype out_buf[O_BUF_DEPTH][FTILE_W * FTILE_H];
-  #pragma HLS array_partition variable=out_buf cyclic factor=OTILE dim=1
+  // Dtype out_buf[O_BUF_DEPTH][O_BUF_ROW * FTILE_W * FTILE_H];
+  // int fac = OTILE;
+  // #pragma HLS array_partition variable=out_buf cyclic factor=fac dim=1
 
-  Dtype w_buf[OTILE * ITILE * W_BUF_DEPTH];
-  #pragma HLS array_reshape variable=w_buf cyclic factor=ITILE*OTILE dim = 1
+  // Dtype w_buf[OTILE * ITILE * W_BUF_DEPTH];
+  // fac = ITILE*OTILE;
+  // #pragma HLS array_reshape variable=w_buf cyclic factor=fac dim=1
 
-  Dtype b_buf[OTILE];
-  #pragma HLS array_partition variable=b_buf complete
+  // Dtype b_buf[OTILE];
+  // #pragma HLS array_partition variable=b_buf complete
 
   /* Start Convolution */
-  Dtype *in_ptr = In;
-  Dtype *out_ptr = Out;
-  // Set on-chip mem arrangement
   // int chnl_num = Lyr == 0 ? 3 : CHNEL[Lyr - 1]; 
-  int col_num = SHAPE[Lyr];
-  // Rows to be read
-  int row_num = 3;
-  // Rows being valid
-  int row_valid = 1;
-  // Rows being valid in last row of input
-  int last_row_valid = 1;
-  int chnl_to_read = Lyr == 0 ? 3 : ITILE;
-  switch (Lyr){
-    case 0 :
-    case 1 : { 
-      row_num = 3;  
-      row_valid = 1;  
-      last_row_valid = 1;
-      break;
-    }
-    case 2 :
-    case 3 : {
-      row_num = 6;  
-      row_valid = 2;  
-      last_row_valid = 2;
-      break;
-    }
-    case 4 :
-    case 5 :
-    case 6 : {
-      row_num = 12; 
-      row_valid = 4;  
-      last_row_valid = 4;
-      break;
-    }
-    case 7 :
-    case 8 :
-    case 9 : {
-      row_num = 24; 
-      row_valid = 8;  
-      last_row_valid = 4;
-      break;
-    }
-    case 10 :
-    case 11 :
-    case 12 : {
-      row_num = 14; 
-      row_valid = 16; 
-      last_row_valid = 14;
-      break;
-    }
-    default: {
-      row_num = 3;  
-      row_valid = 1;  
-      break;
-    }
-  }
   for (int til = 0; til < TilNum; til++){
-  #pragma HLS DATAFLOW
+  //#pragma HLS DATAFLOW
     // Read input feature
-    bool fst = til < ChnlTilNum; 
-    bool last_row = til >= (TilNum - ChnlTilNum);
-    int cur_row_valid = last_row ? last_row_valid : row_valid;
-    buf_read(in_ptr, in_buf, chnl_to_read, row_num, col_num, cur_row_valid, fst);
+    buf_read(In + til * ChnlRead * FTILE_W, // incr In
+             in_buf, 
+             ChnlRead,
+             ColNum); 
+
+    std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
+                 ": Check InBuf." << std::endl;
+    inbuf_check(In, in_buf, Lyr, til);
 
     // Conditional read weight
 
@@ -214,64 +131,27 @@ void conv_fpga(Dtype *In, Dtype *Params, Dtype *Out,
     In, pointer to in_buf.
     InBuf, on-chip buffer.
     ChnlNum, input channels to read.
-    RowNum, row number to read.
     ColNum, col number to read.
-    RowValid, row shift for bram during reading data,
-             also, is the number of valid rows.
-    Fst, whether to read first line. 
 
   Note:
 
     In current design, stride was set to be default 1.
     If stride is not 1, the code should be modified.
 */
-void buf_read(Dtype * In, Dtype InBuf[ITILE][FTILE_W * FTILE_H],
-              int ChnlNum, int RowNum, int ColNum, 
-              int RowValid, bool Fst)
+void buf_read(Dtype * In, 
+              Dtype InBuf[ITILE][FTILE_W * FTILE_H],
+              int ChnlNum,
+              int ColNum)
 {
   for (int n = 0; n < ChnlNum; n++){
-    for (int r = 0; r < RowNum; r++){
+    for (int r = 0; r < FTILE_H; r++){
       for (int c = 0; c < ColNum; c++){
       #pragma HLS PIPELINE
       #pragma HLS dependence variable=InBuf inter false
-        // First line?
-        if (true == Fst){
-          if(r > 0)
-            InBuf[n][r * c] = *In++;
-          else
-            InBuf[n][r * c] = 0.0;
-        }
-        else {
-          if (r >= RowValid) 
-            InBuf[n][r * c - FTILE_W] = InBuf[n][r * c];
-          if (r >= RowNum - RowValid)
-            InBuf[n][r * c] = *In++;
-        }/* First line? */
+        InBuf[n][r * ColNum + c] = *In++;
       }
     }
   }/* for: input channel tile */
 
   return;
-}
-
-void buf_move(Dtype In_Buf[FTILE_W][FTILE_H], Dtype Out_Buf[FTILE_W][FTILE_H])
-{
-  for (int r = 0; r < FTILE_H; r++){
-    for (int c = 0; c < FTILE_W; c++){
-    #pragma HLS PIPELINE
-      Out_Buf[r][c] = In_Buf[r][c];
-    }
-  }
-
-  return;
-}
-
-void buf_write(Dtype Out_Buf[FTILE_W][FTILE_H], Dtype *Out)
-{
-  for (int r = 0; r < FTILE_H; r++){
-    for (int c = 0; c < FTILE_W; c++){
-    #pragma HLS PIPELINE
-      *Out++ = Out_Buf[r][c];
-    }
-  }
 }

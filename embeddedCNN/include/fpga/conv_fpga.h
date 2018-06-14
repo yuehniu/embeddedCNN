@@ -20,25 +20,26 @@
 #ifndef __CONV_FPGA_H__
 #define __CONV_FPGA_H__
 
-#include "../include/common.h"
+#include "../../include/common.h"
 
 // Conv in Xilinx FPGA
-#pragma SDS data access_pattern(In:SEQUENTIAL, Out:SEQUENTIAL)
-#pragma SDS data mem_attribute(In:PHYSICAL_CONTIGUOUS, Out:PHYSICAL_CONTIGUOUS)
-void conv_fpga(Dtype * In, Dtype * Out);
+#pragma SDS data access_pattern(In:SEQUENTIAL)
+#pragma SDS data mem_attribute(In:PHYSICAL_CONTIGUOUS)
+#pragma SDS data copy(In[0:TilNum*ChnlRead*ColNum])
+void conv_fpga(Dtype *In, // Variable DMA transfer length 
+               int Lyr, 
+               int TilNum, 
+               int ChnlRead, 
+               int ColNum);
 
-void conv_fpga(Dtype *In, Dtype *Params, Dtype *Out, 
-               int Lyr, int TilNum, int ChnlTilNum);
-
-// Read input
-void buf_read(Dtype * In, Dtype InBuf[ITILE][FTILE_W * FTILE_H],
-              int ChnlNum, int RowNum, int ColNum, 
-              int RowShft, bool Fst);
-
-// Move data
-void buf_move(Dtype In_Buf[FTILE_W][FTILE_H], Dtype Out_Buf[FTILE_W][FTILE_H]);
-
+// Read data into InBuf
+void buf_read(Dtype * In, 
+              Dtype InBuf[ITILE][FTILE_W * FTILE_H],
+              int ChnlNum,
+              int ColNum);
 // Write data
-void buf_write(Dtype Out_Buf[FTILE_W][FTILE_H], Dtype *Out);
+// #pragma SDS data mem_attribute(Out:PHYSICAL_CONTIGUOUS)
+// #pragma SDS data access_pattern(Out_Buf:SEQUENTIAL, Out:SEQUENTIAL)
+// void buf_write(Dtype Out_Buf[FTILE_W][FTILE_H], Dtype *Out);
 
 #endif /* __CONV_FPGA_H__ */

@@ -64,14 +64,6 @@ int main(int argc, char* argv[])
   cnn_fpga(in_rgbImg, out_logits, params);
 
   // Check dataflow
-  bool all_same = dataflow_check(in_rgbImg, out_logits, 3 * IMG_W * IMG_H);
-  if (true == all_same)
-    std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__  <<
-                 ": Dataflow check pass." << std::endl;
-  else
-    std::cout << "[ERROR] " << __FUNCTION__ << ", " << __LINE__ <<
-                 ": Dataflow check fail." << std::endl;
-
   sds_free(in_rgbImg); sds_free(out_logits); sds_free(params);
   return 0;
 }
