@@ -54,9 +54,28 @@ print '[INFO] Predicted class is:', output_prob.argmax()
 # Extract data
 img = net.blobs['data'].data
 print '[INFO] Data shape:', img.shape
+
+# Convert FP32 to FP16
+_fp16_ = True
+if _fp16_:
+  print '[INFO] Convert FP32 to FP16...'
+  img_fp16 = np.array(img, dtype = np.float16)
+
+_reshape_ = True
+if _reshape_:
+  print '[INFO] Rearrange data storage...'
+  til_num = 224;
+  img_re = np.zeros((224, 3, 224), dtype=np.float16);
+  for ch in range(0, 3):
+    for row in range(0, 224):
+      img_re[row, ch, :] = img_fp16[0, ch, row, :];
+
 print '[INFO] Write data to disk...'
 file_handle = open(r"../data/img.bin", "wb")
 file_handle.write(img)
+file_handle.close()
+file_handle = open(r"../data/imgfp16.bin", "wb")
+file_handle.write(img_re)
 file_handle.close()
 
 # Show image
