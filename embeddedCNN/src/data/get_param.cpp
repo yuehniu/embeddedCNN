@@ -24,7 +24,7 @@ void get_params(Dtype *Params, int ReadSize)
   std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
                ": Load params from file..." << std::endl;
                
-  std::ifstream param_bin("./data/params.bin", std::ios::binary);
+  std::ifstream param_bin("./data/paramfp16.bin", std::ios::binary);
   char *in_buf = reinterpret_cast<char *>(Params);
   param_bin.read(in_buf, ReadSize);
   return;

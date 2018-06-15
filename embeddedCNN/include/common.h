@@ -19,6 +19,7 @@
 
 /* check on ARM CPU? */
 // #define CHECK_CPU
+#define CHECK_FPGA
 
 /* Data type */
 typedef half Dtype;

@@ -56,7 +56,7 @@ int main(int argc, char* argv[])
   int param_buf_size = param_size();
   Dtype *params = (Dtype *)sds_alloc(param_buf_size * sizeof(Dtype));
   mem_check(params);
-  //get_params(params, param_buf_size);
+  get_params(params, param_buf_size);
 
   // CNN in ARM CPU
 

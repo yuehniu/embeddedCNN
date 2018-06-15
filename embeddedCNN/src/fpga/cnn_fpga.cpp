@@ -96,6 +96,7 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
       int osec = CHNEL[c_layer] / OTILE;
       conv_fpga(In, 
                 cur_params,
+                bufferB,
                 c_layer, 
                 row_num, 
                 col_num, 
@@ -106,6 +107,11 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
                 CHNEL[c_layer], 
                 osec, 
                 w_isec);
+      #ifdef CHECK_FPGA
+      std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
+                   ": Check On-chip data." << std::endl;
+      onchip_check(cur_params, bufferB, CHNEL[c_layer]);
+      #endif
       cur_params += (CHNEL[0] * 3 * KERNL[0] * KERNL[0] + CHNEL[0]);
       pingpang = 1;
     }
@@ -118,6 +124,7 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
       if (0 == pingpang)
       {
         conv_fpga(bufferA, 
+                  bufferB,
                   cur_params,
                   c_layer, 
                   row_num, 
@@ -134,6 +141,7 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
       else 
       {
         conv_fpga(bufferB, 
+                  bufferA,
                   cur_params,
                   c_layer, 
                   row_num, 

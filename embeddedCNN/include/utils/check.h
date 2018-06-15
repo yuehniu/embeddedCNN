@@ -39,4 +39,18 @@ inline void mem_check(Dtype *Mem)
 /* Check in_buf */
 void inbuf_check(Dtype *Ref, Dtype InBuf[ITILE][FTILE_W*FTILE_H], int Lyr, int Til);
 
+/* Check w_buf */
+void wbuf_check(Dtype *Param, 
+                Dtype WBuf[OTILE * ITILE][W_BUF_DEPTH],
+                int IChnlTil,
+                int OChnlTil,
+                int Kern,
+                int Sec
+                );
+
+/* Check b_buf */
+void bbuf_check(Dtype *Param, Dtype BBuf[B_BUF_DEPTH], int OChnl);
+
+/* Check 0n-chip data */
+void onchip_check(Dtype *Ref, Dtype *Chip, int OChnl);
 #endif
