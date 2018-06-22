@@ -22,6 +22,9 @@
 
 #include "../../include/common.h"
 
+#define REL_ERR 0.05
+#define ABS_ERR 1
+
 /* Accurate data check */
 bool dataflow_check(Dtype * Ref, Dtype * Res, int Cnt);
 
@@ -37,7 +40,10 @@ inline void mem_check(Dtype *Mem)
 }
 
 /* Check in_buf */
-void inbuf_check(Dtype *Ref, Dtype InBuf[ITILE][FTILE_W*FTILE_H], int Lyr, int Til);
+void inbuf_check(Dtype *Ref, 
+                 Dtype InBuf[ITILE][(FTILE_W+2) * FTILE_H], 
+                 int Lyr, 
+                 int Til);
 
 /* Check w_buf */
 void wbuf_check(Dtype *Param, 
@@ -53,4 +59,7 @@ void bbuf_check(Dtype *Param, Dtype BBuf[B_BUF_DEPTH], int OChnl);
 
 /* Check 0n-chip data */
 void onchip_check(Dtype *Ref, Dtype *Chip, int OChnl);
+
+/* Check computing result */
+void computing_check(Dtype *Out, int Lyr);
 #endif

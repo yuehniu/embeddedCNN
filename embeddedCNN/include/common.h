@@ -18,8 +18,8 @@
 #include "hls_half.h"
 
 /* check on ARM CPU? */
-// #define CHECK_CPU
-#define CHECK_FPGA
+//#define CHECK_CPU
+//#define CHECK_FPGA
 
 /* Data type */
 typedef half Dtype;
@@ -49,7 +49,8 @@ typedef half Dtype;
 // Define buffer depth for output
 // Note this buffer depth is also closely related to model,
 // mainly including maximum output channel number.
-#define O_BUF_DEPTH 512
+#define O_BUF_CHNL 512
+#define O_BUF_SEC 16 // 512/32
 // Define the number of rows buffered in output buffer.
 // This number is closely related to kernel size and strides.
 #define O_BUF_ROW 3

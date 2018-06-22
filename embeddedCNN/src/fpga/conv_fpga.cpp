@@ -87,18 +87,22 @@ void conv_fpga(Dtype *In,    // Variable DMA transfer length
               )
 {
   // Set on-chip buffer
-  Dtype in_buf[ITILE][FTILE_W * FTILE_H];
+  Dtype in_buf[ITILE][(FTILE_W+2) * FTILE_H];
   #pragma HLS array_partition variable=in_buf complete dim=1
 
-  // Dtype out_buf[O_BUF_DEPTH][O_BUF_ROW * FTILE_W * FTILE_H];
-  // int fac = OTILE;
-  // #pragma HLS array_partition variable=out_buf cyclic factor=fac dim=1
+  Dtype out_buf[OTILE][O_BUF_ROW * FTILE_W * FTILE_H * O_BUF_SEC ];
+  #pragma HLS array_partition variable=out_buf complete dim=1
 
   Dtype w_buf[OTILE * ITILE][W_BUF_DEPTH];
   #pragma HLS array_partition variable=w_buf complete dim=1
 
   Dtype b_buf[B_BUF_DEPTH];
   #pragma HLS array_partition variable=b_buf complete
+ 
+  int row;
+  int r = 0;
+  int n_i = 0;
+  int rowmod = 0;
 
   /* Start Convolution */
   // int chnl_num = Lyr == 0 ? 3 : CHNEL[Lyr - 1]; 
@@ -111,39 +115,42 @@ void conv_fpga(Dtype *In,    // Variable DMA transfer length
   bbuf_check(Param, b_buf, OChnl);
   #endif
   Param += OChnl;
-  for (int row = 0, col = 0; row < RowNum; row += FTILE_H){
+  for (row = 0; row < RowNum; row += FTILE_H){
+  /* Row loop */
   // #pragma HLS DATAFLOW
   #pragma HLS loop_tripcount min=224 max=224
-    for (int n = 0; n < IChnl; n += ITILE) { 
+    for (int n = 0; n < IChnl; n += ITILE)  
+    /* Input channel */
+    {
     // #pragma HLS DATAFLOW
     #pragma HLS loop_tripcount min=1 max=1
-    /* Input channel */
       // Read input feature
       buf_read(In + (row * IChnl + n) * FTILE_W, // incr In
                in_buf, 
                ChnlRead,
-               ColNum); 
+               ColNum+2); 
       #ifdef CHECK_CPU
       std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
                    ": Check InBuf." << std::endl;
       inbuf_check(In, in_buf, Lyr, row);
       #endif
-      for (int m = 0, m_i = 0; m < OChnl; m += OTILE, m_i++){ 
+      for (int m = 0, m_i = 0; m < OChnl; m += OTILE, m_i++) 
+      /* Output channel */
+      {
       // #pragma HLS DATAFLOW
       #pragma HLS loop_tripcount min=2 max=2
-      /* Output channel */
         // Conditional read weights 
         weight_read(Param + (n * OChnl + m * ChnlRead) * Kern * Kern, 
                     w_buf, 
                     ChnlRead,
                     OTILE,
                     Kern,
-                    ((n/ITILE) % WISec) * OSec + m_i, // Read to which sec
-                    (0 == row && 0 == col) || (Lyr > 3)   // Whether to read
+                    (n_i - ((n_i >> WISec) << WISec)) * OSec + m_i, // Read to which sec
+                    (0 == row) || (Lyr > 3)   // Whether to read
                     );
         #ifdef CHECK_CPU
         // w_buf check
-        if ((0 == row && 0 == col) || (Lyr > 3)){
+        if ((0 == row) || (Lyr > 3)){
           std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
                        ": Check WBuf." << std::endl;
           wbuf_check(Param + (n + m * ChnlRead) * Kern * Kern,
@@ -151,17 +158,44 @@ void conv_fpga(Dtype *In,    // Variable DMA transfer length
                      ChnlRead,
                      OTILE,
                      Kern,
-                     ((n/ITILE) % WISec) * OSec + m_i);
+                     (n_i - ((n_i >> WISec) << WISec)) * OSec + m_i);
         }
         #endif
+
+        // Compute in parallel
+        compute(in_buf, 
+                w_buf, 
+                b_buf, 
+                out_buf, 
+                r,
+                ColNum, 
+                Kern, 
+                ChnlRead, 
+                OTILE, 
+                OChnl,
+                n / ITILE,
+                m_i, 
+                n == 0);
+
       }/* Output channel */  
     } /* Input channel */
-
-  // Conv op 
-  }/* Start Convolution */
-
+  
   // Write on-chip data to external mem
-  buf_write(b_buf, Out, OChnl);
+  buf_write(out_buf, Out + (row-1) * OChnl * ColNum, rowmod, row >= 1, ColNum, OSec);
+
+  if (Kern == r) r = 1;
+  else           r +=1;
+
+  if ((Kern-1) == rowmod) rowmod = 0;
+  else                    rowmod += 1;
+ 
+  n_i += 1;
+  // Conv op 
+  }/* Row loop */
+
+  // Write the last row
+  buf_write(out_buf, Out + (row-1) * OChnl * ColNum, rowmod, true, ColNum, OSec);
+
   return;
 }
 
@@ -181,7 +215,7 @@ void conv_fpga(Dtype *In,    // Variable DMA transfer length
     If stride is not 1, the code should be modified.
 */
 void buf_read(Dtype * In, 
-              Dtype InBuf[ITILE][FTILE_W * FTILE_H],
+              Dtype InBuf[ITILE][(FTILE_W+2) * FTILE_H],
               int ChnlNum,
               int ColNum)
 {
@@ -192,7 +226,10 @@ void buf_read(Dtype * In,
       for (int c = 0; c < ColNum; c++){
       #pragma HLS loop_tripcount min=224 max=224
       #pragma HLS PIPELINE
-        InBuf[n][r * ColNum + c] = *In++;
+        if ((0 == c) || (ColNum-1 == c))
+          InBuf[n][r * ColNum + c] = (Dtype)0.0;
+        else
+          InBuf[n][r * ColNum + c] = *In++;
       }
     }
   }/* for: input channel tile */
@@ -229,7 +266,7 @@ void weight_read(Dtype *Param,
      #pragma HLS loop_tripcount min=9 max=9
      #pragma HLS PIPELINE
        if(Read)
-         Wbuf[m * IChnlTil + n][Sec * Kern * Kern + k] = *Param++;
+         Wbuf[m * ITILE + n][Sec * Kern * Kern + k] = *Param++;
    }
   }
 
@@ -257,19 +294,183 @@ void bias_read(Dtype *Param, Dtype Bbuf[B_BUF_DEPTH], int OChnl)
 }
 
 /*
-  Write buf data to extern mem
+  Parallel computing unit
+
+  Argument:
+
+    InBuf, input data buffer
+    WBuf,  weights buffer
+    BBuf,  bias buffer
+    OutBuf, output data buffer
+    Row, current row
+    ColNum, total col number in current layer
+    Kern, kernel size
+    IChnlTil, input channel tile number
+    OChnlTil, output channel tile number
+    OChnl, total output channel number
+    ISec, input channel sector
+    OSec, output channel sector
+    LoadBias, whether to load bias
 
   Note:
- 
-    This function was used to verify on-chip dataflow,
-    by write on-chip data to external mem, and check
-    data in CPU.
+
+    - Current design is for k * k kernel size,
+    not for k1 * k2 kernel.
+    - Since input tile is just a row data, k row
+    weights will applied to this signle row to generate
+    three row partial output.
+
 */
-void buf_write(Dtype OutBuf[B_BUF_DEPTH], Dtype *Out, int OChnl)
+void compute(Dtype InBuf[ITILE][(FTILE_W+2) * FTILE_H],
+             Dtype WBuf[OTILE * ITILE][W_BUF_DEPTH],
+             Dtype BBuf[B_BUF_DEPTH],
+             Dtype OutBuf[OTILE][O_BUF_ROW * FTILE_W * FTILE_H * O_BUF_SEC ],
+             int Row,
+             int ColNum,
+             int Kern,
+             int IChnlTil,
+             int OChnlTil,
+             int OChnl,
+             int ISec,
+             int OSec,
+             bool LoadBias)
 {
-  for (int n = 0; n < OChnl; n++){
-  #pragma HLS PIPELINE
-    *Out++ = OutBuf[n];
+  // Set a partial sum reg array
+  //Dtype pesum[OTILE][O_BUF_ROW];
+  //#pragma HLS array_partition variable=pesum complete dim=1
+
+  Dtype partial[OTILE];
+  #pragma HLS array_partition variable=partial complete
+  
+  for (int col = 1; col < ColNum + 1; col++) { /* Col */
+    // Computing partial sum
+    for (int k1 = 0; k1 < Kern; k1++) { /* Kernel row */
+      for (int k2 = 0; k2 < Kern; k2++) { /* Kernel col */
+      #pragma HLS PIPELINE
+         for (int m = 0; m < OTILE; m++) { /* Out channel */
+         //#pragma HLS UNROLL
+         //#pragma HLS dependence variable=OutBuf inter false
+           if(LoadBias && 0 == k2 && (0 == Row || ((Kern-Row) == k1)))  
+             partial[m] = BBuf[OSec * OTILE + m];
+           else
+             partial[m] = 0.0;
+           for (int n = 0; n < ITILE; n++) { /* In channel */
+           //#pragma HLS UNROLL
+             Dtype input = InBuf[n][col - 1 + k2];
+             //Dtype input = InBuf[n][0];
+
+             //pesum[m][k1] = 0.0;
+
+             Dtype weight = 0.0;
+             if ((k1+Row) < Kern)
+               weight = WBuf[m * ITILE + n]
+                            [ISec * OChnl * Kern * Kern + 
+                             OSec * Kern * Kern + 
+                             (k1 + Row) * Kern + 
+                              k2
+                            ];
+             else
+               weight = WBuf[m * ITILE + n]
+                            [ISec * OChnl * Kern * Kern + 
+                             OSec * Kern * Kern + 
+                             ((k1 + Row) - Kern) * Kern + 
+                             k2
+                            ];
+             
+             //Dtype weight = WBuf[m * ITILE + n][0];
+             //Dtype weight = 0.0;
+               
+
+             //pesum[m][k1] += input * weight;
+             partial[m] += weight * input;
+           } /* In channel */
+
+           if(LoadBias && 0 == k2 && 
+              (0 == Row || 
+               (1 == Row && (Kern-1) == k1) ||
+               (k1 == (Kern - Row))
+              )
+             )
+           {
+             OutBuf[m][OSec * O_BUF_ROW * ColNum + k1 * ColNum + col - 1] = 
+               partial[m];
+           }
+           else {
+             OutBuf[m][OSec * O_BUF_ROW * ColNum + k1 * ColNum + col - 1] += 
+               partial[m];
+           }
+         } /* Out channel */
+      } /* Kernl col */ 
+    } /* Kernel row */ 
+                  
+    // Accumulate
+    //for(int k1 = 0; k1 < Kern; k1++) { /* Kernel row */
+    //  for(int m = 0; m < OTILE; m++) { /* Out channel*/
+    //  #pragma HLS UNROLL
+    //    Dtype partial = 0.0;
+    //    if (LoadBias){
+    //      if (0 == Row)
+    //        partial = BBuf[OSec * OTILE + m];
+    //      else if(1 == Row && (Kern-1) == k1)
+    //        partial = 0.0;
+    //      //else if(k1 == ((Kern - (Row % Kern)) % Kern))
+    //      //  partial[m] = BBuf[OSec * OTILE + m];
+    //      else
+    //        partial = OutBuf[m][OSec * O_BUF_ROW * ColNum + k1 * ColNum + col - 1];
+    //    }
+    //    else
+    //      partial = OutBuf[m][OSec * O_BUF_ROW * ColNum + k1 * ColNum + col - 1];
+
+    //    OutBuf[m][OSec * O_BUF_ROW * ColNum + k1 * ColNum + col - 1] = 
+    //      partial + pesum[m][k1];
+    //  } /* Out channel */
+    //} /* Kernel row */
+
+  } /* Col */
+  return;
+}
+/*
+  Write buf data to extern mem
+
+  Arguments:
+
+    OutBuf, output buffer
+    Out, external output mem
+    Row, row % Kern
+    Write, whether to write data out
+    ColNum, col number in one layer
+    OSec,  output channel sector
+
+  Note:
+  
+    This function contrain relu ops. 
+*/
+void buf_write(Dtype OutBuf[OTILE][O_BUF_ROW * FTILE_W * FTILE_H * O_BUF_SEC], 
+               Dtype *Out, 
+               int Row,
+               bool Write,
+               int ColNum,
+               int OSec)
+{
+  for (int m = 0; m < OSec; m++){
+    for (int m_i = 0; m_i < OTILE; m_i++){
+      for (int col = 0; col < ColNum; col++) {
+      #pragma HLS PIPELINE
+        if (Write) {
+          Dtype data = 0.0;
+          if (0 == Row) {
+            data = OutBuf[m_i][m * O_BUF_ROW * ColNum + 2 * ColNum + col];
+          }
+          else if (1 == Row) {
+            data = OutBuf[m_i][m * O_BUF_ROW * ColNum + ColNum + col];
+          }
+          else if (2 == Row) {
+            data = OutBuf[m_i][m * O_BUF_ROW * ColNum + col];
+          }
+          *Out++ = (data < 0) ? (Dtype)0.0 : data;
+        }
+      } 
+    }
   }
 
   return;

@@ -69,22 +69,22 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
   Dtype *cur_params = Params;
   for (int c_layer = 0; c_layer < CONV_LAYER_NUM; c_layer++)
   {
-    int w_isec = 1;
+    int w_isec = 0; // 2^w_isec
     switch (c_layer){
-      case 0:  w_isec = 1; break;
+      case 0:  w_isec = 0; break;
       case 1:
       case 2:
       case 4:
       case 5:
-      case 6:  w_isec = 4; break;
-      case 3:  w_isec = 8; break;
+      case 6:  w_isec = 2; break;
+      case 3:  w_isec = 3; break;
       case 7:
       case 8:
       case 9:
       case 10:
       case 11:
-      case 12: w_isec = 2; break;
-      default: w_isec = 1; break;
+      case 12: w_isec = 1; break;
+      default: w_isec = 0; break;
     }
     int col_num = SHAPE[c_layer];
     int row_num = SHAPE[c_layer];
@@ -107,15 +107,10 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
                 CHNEL[c_layer], 
                 osec, 
                 w_isec);
-      #ifdef CHECK_FPGA
-      std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
-                   ": Check On-chip data." << std::endl;
-      onchip_check(cur_params, bufferB, CHNEL[c_layer]);
-      #endif
       cur_params += (CHNEL[0] * 3 * KERNL[0] * KERNL[0] + CHNEL[0]);
       pingpang = 1;
     }
-    else {
+    else { /* c_layer != 0 */
       int chnl_to_read = ITILE;
       int isec = CHNEL[c_layer - 1] / ITILE;
       int osec = CHNEL[c_layer] / OTILE;
@@ -159,7 +154,11 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
       // Update pointer to parameters
       cur_params += (CHNEL[c_layer] * CHNEL[c_layer - 1] * KERNL[0] * KERNL[0] +
                      CHNEL[c_layer]);
-    }
+    } /* c_layer != 0 */
+
+    std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
+                 ": Check On-chip data." << std::endl;
+    computing_check(bufferB, c_layer);
   }
 
   /* Do FC layer by layer */
