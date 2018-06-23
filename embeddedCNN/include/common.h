@@ -26,7 +26,7 @@ typedef half Dtype;
 
 /* Network definition for VGG16 */
 #define CLASS_NUM 1000
-#define CONV_LAYER_NUM 1
+#define CONV_LAYER_NUM 2
 #define FC_LAYER_NUM 5
 #define IMG_W 224
 #define IMG_H 224

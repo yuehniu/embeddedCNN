@@ -68,7 +68,7 @@ void compute(Dtype InBuf[ITILE][(FTILE_W+2) * FTILE_H],
              int Kern,
              int IChnlTil,
              int OChnlTil,
-             int OChnl,
+             int OTilNum,
              int ISec,
              int OSec,
              bool LoadBias);

@@ -27,6 +27,7 @@
 #include "../../include/fpga/conv_fpga.h"
 #include "../../include/data/get_param.h"
 #include "../include/utils/check.h"
+#include "../include/utils/performance.h"
 #include "../include/common.h"
 
 extern const int SHAPE[18];
@@ -94,6 +95,8 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
       int chnl_to_read = 3;
       int isec = 1;
       int osec = CHNEL[c_layer] / OTILE;
+      perf_counter perf;
+      perf.start();
       conv_fpga(In, 
                 cur_params,
                 bufferB,
@@ -107,6 +110,11 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
                 CHNEL[c_layer], 
                 osec, 
                 w_isec);
+      perf.stop();
+      uint64_t cpu_cycles = perf.avg_cpu_cycles();
+      float lyr_time = (float)cpu_cycles / 1.5e9;
+      std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
+                  ": Finish in " << lyr_time << "s." << std::endl;
       cur_params += (CHNEL[0] * 3 * KERNL[0] * KERNL[0] + CHNEL[0]);
       pingpang = 1;
     }
@@ -116,49 +124,60 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
       int osec = CHNEL[c_layer] / OTILE;
       std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
                  ": " << c_layer << "th convolution layer." << std::endl;
+      perf_counter perf;
       if (0 == pingpang)
       {
+        perf.start();
         conv_fpga(bufferA, 
-                  bufferB,
                   cur_params,
+                  bufferB,
                   c_layer, 
                   row_num, 
                   col_num, 
                   chnl_to_read, 
                   KERNL[c_layer], 
-                  chnl_to_read, 
+                  CHNEL[c_layer - 1], 
                   isec, 
                   CHNEL[c_layer], 
                   osec, 
                   w_isec);
+        perf.stop();
         pingpang = 1;
       }
       else 
       {
+        perf.start();
         conv_fpga(bufferB, 
-                  bufferA,
                   cur_params,
+                  bufferA,
                   c_layer, 
                   row_num, 
                   col_num, 
                   chnl_to_read, 
                   KERNL[c_layer], 
-                  chnl_to_read, 
+                  CHNEL[c_layer - 1], 
                   isec, 
                   CHNEL[c_layer], 
                   osec, 
                   w_isec);
+        perf.stop();
         pingpang = 0;
       }
+      uint64_t cpu_cycles = perf.avg_cpu_cycles();
+      float lyr_time = (float)cpu_cycles / 1.5e9;
+      std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
+                  ": Finish in " << lyr_time << "s." << std::endl;
 
       // Update pointer to parameters
       cur_params += (CHNEL[c_layer] * CHNEL[c_layer - 1] * KERNL[0] * KERNL[0] +
                      CHNEL[c_layer]);
     } /* c_layer != 0 */
 
-    std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
-                 ": Check On-chip data." << std::endl;
-    computing_check(bufferB, c_layer);
+    if (2 == c_layer){
+      std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
+                   ": Check On-chip data." << std::endl;
+      computing_check(bufferA, c_layer);
+    }
   }
 
   /* Do FC layer by layer */

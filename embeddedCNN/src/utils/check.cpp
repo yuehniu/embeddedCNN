@@ -121,7 +121,8 @@ void wbuf_check(Dtype *Param,
           Dtype wbuf = WBuf[och * ITILE + ich][Sec * Kern * Kern + k];
           if (ref == wbuf){
             log << "[LOG] " << __FUNCTION__ << ", " << __LINE__ <<
-                   ": " << Sec * OChnlTil + och << "th ochannel, " <<
+                   ": " << Sec << "th sector, " <<
+                           och << "th ochannel, " <<
                            ich << "th ichannel, " <<
                            k   << "th weight check pass." << 
                            std::endl;
@@ -201,7 +202,7 @@ void onchip_check(Dtype *Ref, Dtype *Chip, int OChnl)
 void computing_check(Dtype *Out, int Lyr)
 {
   std::ofstream log("check_conv_result.log", std::ios::app);
-  std::ifstream feature("./data/conv1_1fp16.bin", std::ios::binary); 
+  std::ifstream feature("./data/conv1_2fp16.bin", std::ios::binary); 
   int r_size = CHNEL[Lyr] * SHAPE[Lyr] * SHAPE[Lyr];
   Dtype *ref_feat = (Dtype *) malloc(r_size * sizeof(Dtype));
   char *ref_char = reinterpret_cast<char *>(ref_feat); 
@@ -251,5 +252,6 @@ void computing_check(Dtype *Out, int Lyr)
   }
 
   free(ref_feat);
+  feature.close();
   return;
 }

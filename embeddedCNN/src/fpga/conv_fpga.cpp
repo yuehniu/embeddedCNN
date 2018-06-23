@@ -90,7 +90,7 @@ void conv_fpga(Dtype *In,    // Variable DMA transfer length
   Dtype in_buf[ITILE][(FTILE_W+2) * FTILE_H];
   #pragma HLS array_partition variable=in_buf complete dim=1
 
-  Dtype out_buf[OTILE][O_BUF_ROW * FTILE_W * FTILE_H * O_BUF_SEC ];
+  Dtype out_buf[OTILE][O_BUF_ROW * FTILE_W * FTILE_H * O_BUF_SEC];
   #pragma HLS array_partition variable=out_buf complete dim=1
 
   Dtype w_buf[OTILE * ITILE][W_BUF_DEPTH];
@@ -105,7 +105,7 @@ void conv_fpga(Dtype *In,    // Variable DMA transfer length
   int rowmod = 0;
 
   /* Start Convolution */
-  // int chnl_num = Lyr == 0 ? 3 : CHNEL[Lyr - 1]; 
+
   // Read bias first
   bias_read(Param, b_buf, OChnl);
   #ifdef CHECK_CPU
@@ -115,17 +115,15 @@ void conv_fpga(Dtype *In,    // Variable DMA transfer length
   bbuf_check(Param, b_buf, OChnl);
   #endif
   Param += OChnl;
-  for (row = 0; row < RowNum; row += FTILE_H){
-  /* Row loop */
+  for (row = 0; row < RowNum; row += FTILE_H){ /* Row loop */
   // #pragma HLS DATAFLOW
   #pragma HLS loop_tripcount min=224 max=224
-    for (int n = 0; n < IChnl; n += ITILE)  
-    /* Input channel */
-    {
+    n_i = 0;
+    for (int n = 0; n < IChnl; n += ITILE){ /* Input channel */
     // #pragma HLS DATAFLOW
     #pragma HLS loop_tripcount min=1 max=1
       // Read input feature
-      buf_read(In + (row * IChnl + n) * FTILE_W, // incr In
+      buf_read(In + (row * IChnl + n) * ColNum, // incr In
                in_buf, 
                ChnlRead,
                ColNum+2); 
@@ -134,9 +132,9 @@ void conv_fpga(Dtype *In,    // Variable DMA transfer length
                    ": Check InBuf." << std::endl;
       inbuf_check(In, in_buf, Lyr, row);
       #endif
-      for (int m = 0, m_i = 0; m < OChnl; m += OTILE, m_i++) 
-      /* Output channel */
-      {
+
+      int m_i = 0;
+      for(int m = 0; m < OChnl; m += OTILE){ /* Output channel */
       // #pragma HLS DATAFLOW
       #pragma HLS loop_tripcount min=2 max=2
         // Conditional read weights 
@@ -153,7 +151,7 @@ void conv_fpga(Dtype *In,    // Variable DMA transfer length
         if ((0 == row) || (Lyr > 3)){
           std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
                        ": Check WBuf." << std::endl;
-          wbuf_check(Param + (n + m * ChnlRead) * Kern * Kern,
+          wbuf_check(Param + (n * OChnl + m * ChnlRead) * Kern * Kern,
                      w_buf,
                      ChnlRead,
                      OTILE,
@@ -172,12 +170,14 @@ void conv_fpga(Dtype *In,    // Variable DMA transfer length
                 Kern, 
                 ChnlRead, 
                 OTILE, 
-                OChnl,
-                n / ITILE,
+                OSec,
+                n_i,
                 m_i, 
                 n == 0);
 
+        m_i += 1;
       }/* Output channel */  
+      n_i += 1;
     } /* Input channel */
   
   // Write on-chip data to external mem
@@ -189,7 +189,6 @@ void conv_fpga(Dtype *In,    // Variable DMA transfer length
   if ((Kern-1) == rowmod) rowmod = 0;
   else                    rowmod += 1;
  
-  n_i += 1;
   // Conv op 
   }/* Row loop */
 
@@ -307,7 +306,7 @@ void bias_read(Dtype *Param, Dtype Bbuf[B_BUF_DEPTH], int OChnl)
     Kern, kernel size
     IChnlTil, input channel tile number
     OChnlTil, output channel tile number
-    OChnl, total output channel number
+    OTilNum, total output channel tiles
     ISec, input channel sector
     OSec, output channel sector
     LoadBias, whether to load bias
@@ -330,7 +329,7 @@ void compute(Dtype InBuf[ITILE][(FTILE_W+2) * FTILE_H],
              int Kern,
              int IChnlTil,
              int OChnlTil,
-             int OChnl,
+             int OTilNum,
              int ISec,
              int OSec,
              bool LoadBias)
@@ -364,14 +363,14 @@ void compute(Dtype InBuf[ITILE][(FTILE_W+2) * FTILE_H],
              Dtype weight = 0.0;
              if ((k1+Row) < Kern)
                weight = WBuf[m * ITILE + n]
-                            [ISec * OChnl * Kern * Kern + 
+                            [ISec * OTilNum * Kern * Kern + 
                              OSec * Kern * Kern + 
                              (k1 + Row) * Kern + 
                               k2
                             ];
              else
                weight = WBuf[m * ITILE + n]
-                            [ISec * OChnl * Kern * Kern + 
+                            [ISec * OTilNum * Kern * Kern + 
                              OSec * Kern * Kern + 
                              ((k1 + Row) - Kern) * Kern + 
                              k2
@@ -403,29 +402,6 @@ void compute(Dtype InBuf[ITILE][(FTILE_W+2) * FTILE_H],
       } /* Kernl col */ 
     } /* Kernel row */ 
                   
-    // Accumulate
-    //for(int k1 = 0; k1 < Kern; k1++) { /* Kernel row */
-    //  for(int m = 0; m < OTILE; m++) { /* Out channel*/
-    //  #pragma HLS UNROLL
-    //    Dtype partial = 0.0;
-    //    if (LoadBias){
-    //      if (0 == Row)
-    //        partial = BBuf[OSec * OTILE + m];
-    //      else if(1 == Row && (Kern-1) == k1)
-    //        partial = 0.0;
-    //      //else if(k1 == ((Kern - (Row % Kern)) % Kern))
-    //      //  partial[m] = BBuf[OSec * OTILE + m];
-    //      else
-    //        partial = OutBuf[m][OSec * O_BUF_ROW * ColNum + k1 * ColNum + col - 1];
-    //    }
-    //    else
-    //      partial = OutBuf[m][OSec * O_BUF_ROW * ColNum + k1 * ColNum + col - 1];
-
-    //    OutBuf[m][OSec * O_BUF_ROW * ColNum + k1 * ColNum + col - 1] = 
-    //      partial + pesum[m][k1];
-    //  } /* Out channel */
-    //} /* Kernel row */
-
   } /* Col */
   return;
 }
@@ -443,7 +419,7 @@ void compute(Dtype InBuf[ITILE][(FTILE_W+2) * FTILE_H],
 
   Note:
   
-    This function contrain relu ops. 
+    This function contrain relu and pooling op. 
 */
 void buf_write(Dtype OutBuf[OTILE][O_BUF_ROW * FTILE_W * FTILE_H * O_BUF_SEC], 
                Dtype *Out, 
