@@ -83,7 +83,9 @@ void conv_fpga(Dtype *In,    // Variable DMA transfer length
                int ISec,     // Input sec number
                int OChnl,    // Output param channel to read
                int OSec,     // Out sec number
-               int WISec     // Input sec number in buf for each layer
+               int WISec,    // Input sec number in buf for each layer
+               int PoolDiv,
+               bool Pool     // Whether pooling
               )
 {
   // Set on-chip buffer
@@ -92,6 +94,9 @@ void conv_fpga(Dtype *In,    // Variable DMA transfer length
 
   Dtype out_buf[OTILE][O_BUF_ROW * FTILE_W * FTILE_H * O_BUF_SEC];
   #pragma HLS array_partition variable=out_buf complete dim=1
+
+  Dtype pool_buf[OTILE][FTILE_W * O_BUF_SEC / 2];
+  #pragma HLS array_partition variable=pool_buf complete dim=1
 
   Dtype w_buf[OTILE * ITILE][W_BUF_DEPTH];
   #pragma HLS array_partition variable=w_buf complete dim=1
@@ -103,6 +108,7 @@ void conv_fpga(Dtype *In,    // Variable DMA transfer length
   int r = 0;
   int n_i = 0;
   int rowmod = 0;
+  int out_offset = 0;
 
   /* Start Convolution */
 
@@ -181,7 +187,23 @@ void conv_fpga(Dtype *In,    // Variable DMA transfer length
     } /* Input channel */
   
   // Write on-chip data to external mem
-  buf_write(out_buf, Out + (row-1) * OChnl * ColNum, rowmod, row >= 1, ColNum, OSec);
+  buf_write(out_buf, pool_buf, Out + out_offset, 
+            rowmod,       // Which row should be write off
+            row >= 1,     // Whether write
+            Pool,         // Whether pooling
+            !(row & 0x1), // Whether write pooling off
+            ColNum,       // Col number in cur layer
+            OSec
+            );
+  if(row >= 1){
+    if (Pool){
+      if(!(row & 0x1))  
+        out_offset += OChnl * ColNum / 2;
+    }
+    else{
+      out_offset += OChnl * ColNum;
+    }
+  }
 
   if (Kern == r) r = 1;
   else           r +=1;
@@ -193,7 +215,14 @@ void conv_fpga(Dtype *In,    // Variable DMA transfer length
   }/* Row loop */
 
   // Write the last row
-  buf_write(out_buf, Out + (row-1) * OChnl * ColNum, rowmod, true, ColNum, OSec);
+  buf_write(out_buf, pool_buf, Out + out_offset, 
+            rowmod,       // Which row should be write off
+            true,         // Whether write
+            Pool,         // Whether Pooling
+            !(row & 0x1), // Whether write poolling off 
+            ColNum,       // Col number in cur layer
+            OSec
+           );
 
   return;
 }
@@ -419,31 +448,53 @@ void compute(Dtype InBuf[ITILE][(FTILE_W+2) * FTILE_H],
 
   Note:
   
-    This function contrain relu and pooling op. 
+    This function contrain relu and max pooling op. 
 */
 void buf_write(Dtype OutBuf[OTILE][O_BUF_ROW * FTILE_W * FTILE_H * O_BUF_SEC], 
+               Dtype PoolBuf[OTILE][FTILE_W * O_BUF_SEC / 2],
                Dtype *Out, 
                int Row,
                bool Write,
+               bool Pool,
+               bool PoolWrite,
                int ColNum,
                int OSec)
 {
   for (int m = 0; m < OSec; m++){
     for (int m_i = 0; m_i < OTILE; m_i++){
-      for (int col = 0; col < ColNum; col++) {
+      for (int col = 0; col < ColNum; col+=2) {
       #pragma HLS PIPELINE
         if (Write) {
-          Dtype data = 0.0;
+          Dtype data1 = 0.0;
+          Dtype data2 = 0.0;
           if (0 == Row) {
-            data = OutBuf[m_i][m * O_BUF_ROW * ColNum + 2 * ColNum + col];
+            data1 = OutBuf[m_i][m * O_BUF_ROW * ColNum + 2 * ColNum + col];
+            data2 = OutBuf[m_i][m * O_BUF_ROW * ColNum + 2 * ColNum + col + 1];
           }
           else if (1 == Row) {
-            data = OutBuf[m_i][m * O_BUF_ROW * ColNum + ColNum + col];
+            data1 = OutBuf[m_i][m * O_BUF_ROW * ColNum + ColNum + col];
+            data2 = OutBuf[m_i][m * O_BUF_ROW * ColNum + ColNum + col + 1];
           }
           else if (2 == Row) {
-            data = OutBuf[m_i][m * O_BUF_ROW * ColNum + col];
+            data1 = OutBuf[m_i][m * O_BUF_ROW * ColNum + col];
+            data2 = OutBuf[m_i][m * O_BUF_ROW * ColNum + col + 1];
           }
-          *Out++ = (data < 0) ? (Dtype)0.0 : data;
+          if (Pool){
+            if (PoolWrite){
+              Dtype max_cur = (data1 > data2) ? data1 : data2;
+              Dtype max_last = PoolBuf[m_i][m * (ColNum >> 1) + (col >> 1)];
+              Dtype max = (max_cur > max_last) ? max_cur : max_last;
+              *Out++ = (max < 0) ? (Dtype)0.0 : max;
+            }
+            else{
+              Dtype max = (data1 > data2) ? data1 : data2;
+              PoolBuf[m_i][m * (ColNum >> 1) + (col >> 1)] = max;
+            }
+          }
+          else {
+            *Out++ = (data1 < 0) ? (Dtype)0.0 : data1;
+            *Out++ = (data2 < 0) ? (Dtype)0.0 : data2;
+          }
         }
       } 
     }

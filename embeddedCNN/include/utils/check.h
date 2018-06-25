@@ -61,5 +61,5 @@ void bbuf_check(Dtype *Param, Dtype BBuf[B_BUF_DEPTH], int OChnl);
 void onchip_check(Dtype *Ref, Dtype *Chip, int OChnl);
 
 /* Check computing result */
-void computing_check(Dtype *Out, int Lyr);
+void computing_check(Dtype *Out, int Lyr, bool Pooling);
 #endif

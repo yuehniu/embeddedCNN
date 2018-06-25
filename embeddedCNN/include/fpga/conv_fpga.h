@@ -25,7 +25,7 @@
 // Conv in Xilinx FPGA
 #pragma SDS data access_pattern(In:SEQUENTIAL, Param:SEQUENTIAL, Out:SEQUENTIAL)
 #pragma SDS data mem_attribute(In:PHYSICAL_CONTIGUOUS, Param:PHYSICAL_CONTIGUOUS, Out:PHYSICAL_CONTIGUOUS)
-#pragma SDS data copy(In[0:IChnl*RowNum*ColNum], Param[0:OChnl+IChnl*OChnl*Kern*Kern], Out[0:OChnl*RowNum*ColNum])
+#pragma SDS data copy(In[0:IChnl*RowNum*ColNum], Param[0:OChnl+IChnl*OChnl*Kern*Kern], Out[0:OChnl*RowNum*ColNum/PoolDiv])
 void conv_fpga(Dtype *In,    // Variable DMA transfer length 
                Dtype *Param, // Variable DMA transfer length
                Dtype *Out,   // Variable DMA transfer length
@@ -38,7 +38,9 @@ void conv_fpga(Dtype *In,    // Variable DMA transfer length
                int ISec,     // Input sec number
                int OChnl,    // Output param channel to read
                int OSec,     // Out sec number
-               int WISec     // Input sec number in buf for each layer
+               int WISec,    // Input sec number in buf for each layer
+               int PoolDiv,
+               bool Pool     // Whether pooling
               );
 
 // Read data into InBuf
@@ -77,9 +79,12 @@ void compute(Dtype InBuf[ITILE][(FTILE_W+2) * FTILE_H],
 // #pragma SDS data mem_attribute(Out:PHYSICAL_CONTIGUOUS)
 // #pragma SDS data access_pattern(Out_Buf:SEQUENTIAL, Out:SEQUENTIAL)
 void buf_write(Dtype OutBuf[OTILE][O_BUF_ROW * FTILE_W * FTILE_H * O_BUF_SEC], 
+               Dtype PoolBuf[OTILE][FTILE_W * O_BUF_SEC / 2],
                Dtype *Out, 
                int Row,
                bool Write,
+               bool Pool,
+               bool PoolWrite,
                int ColNum,
                int OSec);
 

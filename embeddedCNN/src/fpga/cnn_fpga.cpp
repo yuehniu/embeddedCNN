@@ -33,6 +33,7 @@
 extern const int SHAPE[18];
 extern const int CHNEL[18];
 extern const int KERNL[13];
+extern const bool POOL[13];
 
 /* 
   Desc:
@@ -95,6 +96,9 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
       int chnl_to_read = 3;
       int isec = 1;
       int osec = CHNEL[c_layer] / OTILE;
+      int pool_div = 1;
+      if (POOL[c_layer]) pool_div = 4;
+      else               pool_div = 1;
       perf_counter perf;
       perf.start();
       conv_fpga(In, 
@@ -109,7 +113,9 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
                 isec, 
                 CHNEL[c_layer], 
                 osec, 
-                w_isec);
+                w_isec,
+                pool_div,
+                POOL[c_layer]);
       perf.stop();
       uint64_t cpu_cycles = perf.avg_cpu_cycles();
       float lyr_time = (float)cpu_cycles / 1.5e9;
@@ -122,6 +128,9 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
       int chnl_to_read = ITILE;
       int isec = CHNEL[c_layer - 1] / ITILE;
       int osec = CHNEL[c_layer] / OTILE;
+      int pool_div = 1;
+      if (POOL[c_layer]) pool_div = 4;
+      else               pool_div = 1;
       std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
                  ": " << c_layer << "th convolution layer." << std::endl;
       perf_counter perf;
@@ -140,7 +149,9 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
                   isec, 
                   CHNEL[c_layer], 
                   osec, 
-                  w_isec);
+                  w_isec,
+                  pool_div,
+                  POOL[c_layer]);
         perf.stop();
         pingpang = 1;
       }
@@ -159,7 +170,9 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
                   isec, 
                   CHNEL[c_layer], 
                   osec, 
-                  w_isec);
+                  w_isec,
+                  pool_div,
+                  POOL[c_layer]);
         perf.stop();
         pingpang = 0;
       }
@@ -173,10 +186,11 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
                      CHNEL[c_layer]);
     } /* c_layer != 0 */
 
-    if (2 == c_layer){
+    if (1 == c_layer){
+      Dtype *buffer_ptr = pingpang == 0 ? bufferA : bufferB;
       std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
                    ": Check On-chip data." << std::endl;
-      computing_check(bufferA, c_layer);
+      computing_check(buffer_ptr, c_layer, POOL[c_layer]);
     }
   }
 

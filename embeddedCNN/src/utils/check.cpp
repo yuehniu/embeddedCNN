@@ -199,19 +199,34 @@ void onchip_check(Dtype *Ref, Dtype *Chip, int OChnl)
 }
 
 /* Check computing result */
-void computing_check(Dtype *Out, int Lyr)
+void computing_check(Dtype *Out, int Lyr, bool Pooling)
 {
   std::ofstream log("check_conv_result.log", std::ios::app);
-  std::ifstream feature("./data/conv1_2fp16.bin", std::ios::binary); 
-  int r_size = CHNEL[Lyr] * SHAPE[Lyr] * SHAPE[Lyr];
+  std::ifstream feature;
+  if (0 == Lyr)
+    feature.open("./data/conv1_1fp16.bin", std::ios::binary); 
+  else if (1 == Lyr){
+    if (Pooling)
+      feature.open("./data/pool1fp16.bin", std::ios::binary); 
+    else
+      feature.open("./data/conv1_2fp16.bin", std::ios::binary); 
+  }
+
+  int r_size = 0;
+  if (Pooling)
+    r_size = CHNEL[Lyr] * SHAPE[Lyr] * SHAPE[Lyr] >> 2;
+  else
+    r_size = CHNEL[Lyr] * SHAPE[Lyr] * SHAPE[Lyr];
   Dtype *ref_feat = (Dtype *) malloc(r_size * sizeof(Dtype));
   char *ref_char = reinterpret_cast<char *>(ref_feat); 
   feature.read(ref_char, r_size * sizeof(Dtype));
 
-  for (int row = 0; row < SHAPE[Lyr]; row++) {
+  int row_num = Pooling ? SHAPE[Lyr] / 2 : SHAPE[Lyr];
+  int col_num = Pooling ? SHAPE[Lyr] / 2 : SHAPE[Lyr];
+  for (int row = 0; row < row_num; row++) {
     for (int och = 0; och < CHNEL[Lyr]; och++) {
-      for (int col = 0; col < SHAPE[Lyr]; col++) {
-        int pos = row * CHNEL[Lyr] * SHAPE[Lyr] + och * SHAPE[Lyr] + col;
+      for (int col = 0; col < col_num; col++) {
+        int pos = row * CHNEL[Lyr] * row_num + och * col_num + col;
         Dtype ref = *(ref_feat + pos);
         Dtype out = *(Out + pos);
         if (ref < 15.0){
