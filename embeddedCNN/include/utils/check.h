@@ -22,8 +22,8 @@
 
 #include "../../include/common.h"
 
-#define REL_ERR 0.05
-#define ABS_ERR 1
+#define REL_ERR 0.03
+#define ABS_ERR 2
 
 /* Accurate data check */
 bool dataflow_check(Dtype * Ref, Dtype * Res, int Cnt);

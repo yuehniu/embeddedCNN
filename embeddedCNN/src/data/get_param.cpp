@@ -26,7 +26,8 @@ void get_params(Dtype *Params, int ReadSize)
                
   std::ifstream param_bin("./data/paramfp16.bin", std::ios::binary);
   char *in_buf = reinterpret_cast<char *>(Params);
-  param_bin.read(in_buf, ReadSize);
+  param_bin.read(in_buf, ReadSize * sizeof(Dtype));
+  param_bin.close();
   return;
 }
 

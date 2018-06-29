@@ -26,7 +26,7 @@ typedef half Dtype;
 
 /* Network definition for VGG16 */
 #define CLASS_NUM 1000
-#define CONV_LAYER_NUM 2
+#define CONV_LAYER_NUM 13
 #define FC_LAYER_NUM 5
 #define IMG_W 224
 #define IMG_H 224
@@ -34,8 +34,10 @@ typedef half Dtype;
 /* Conv params */
 // Input channel tile size
 #define ITILE 16
+#define ITILSHFT 4
 // Output channel title size
 #define OTILE 32
+#define OTILSHFT 5
 // Feature map title size(3x224)
 // This set is suitable for input with 224x224,
 // kernel size with 3x3

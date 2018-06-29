@@ -211,6 +211,44 @@ void computing_check(Dtype *Out, int Lyr, bool Pooling)
     else
       feature.open("./data/conv1_2fp16.bin", std::ios::binary); 
   }
+  else if (2 == Lyr)
+    feature.open("./data/conv2_1fp16.bin", std::ios::binary); 
+  else if (3 == Lyr){
+    if (Pooling)
+      feature.open("./data/pool2fp16.bin", std::ios::binary); 
+    else 
+      feature.open("./data/conv2_2.bin", std::ios::binary); 
+  }
+  else if (4 == Lyr)
+    feature.open("./data/conv3_1fp16.bin", std::ios::binary); 
+  else if (5 == Lyr)
+    feature.open("./data/conv3_2fp16.bin", std::ios::binary); 
+  else if (6 == Lyr){
+    if (Pooling)
+      feature.open("./data/pool3fp16.bin", std::ios::binary); 
+    else 
+      feature.open("./data/conv3_3.bin", std::ios::binary); 
+  }
+  else if (7 == Lyr)
+    feature.open("./data/conv4_1fp16.bin", std::ios::binary); 
+  else if (8 == Lyr)
+    feature.open("./data/conv4_2fp16.bin", std::ios::binary); 
+  else if (9 == Lyr){
+    if (Pooling)
+      feature.open("./data/pool4fp16.bin", std::ios::binary); 
+    else 
+      feature.open("./data/conv4_3.bin", std::ios::binary); 
+  }
+  else if (10 == Lyr)
+    feature.open("./data/conv5_1fp16.bin", std::ios::binary); 
+  else if (11 == Lyr)
+    feature.open("./data/conv5_2fp16.bin", std::ios::binary); 
+  else if (12 == Lyr){
+    if (Pooling)
+      feature.open("./data/pool5fp16.bin", std::ios::binary); 
+    else 
+      feature.open("./data/conv5_3fp16.bin", std::ios::binary); 
+  }
 
   int r_size = 0;
   if (Pooling)
@@ -229,7 +267,7 @@ void computing_check(Dtype *Out, int Lyr, bool Pooling)
         int pos = row * CHNEL[Lyr] * row_num + och * col_num + col;
         Dtype ref = *(ref_feat + pos);
         Dtype out = *(Out + pos);
-        if (ref < 15.0){
+        if (ref < 10.0){
           float abs_err = ref - out;
           if (-ABS_ERR <= abs_err && abs_err <= ABS_ERR)
             log << "[LOG] " << __FUNCTION__ << ", " << __LINE__ <<

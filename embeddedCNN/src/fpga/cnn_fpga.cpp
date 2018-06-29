@@ -17,6 +17,7 @@
         Yue Niu
 */
 #include <iostream>
+#include <fstream>
 #include <cmath>
 #include <stdlib.h>
 
@@ -69,6 +70,7 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
   // 1: bufferA(output), bufferB(input)
   int pingpang = 0;
   Dtype *cur_params = Params;
+  float total_time = 0;
   for (int c_layer = 0; c_layer < CONV_LAYER_NUM; c_layer++)
   {
     int w_isec = 0; // 2^w_isec
@@ -119,6 +121,7 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
       perf.stop();
       uint64_t cpu_cycles = perf.avg_cpu_cycles();
       float lyr_time = (float)cpu_cycles / 1.5e9;
+      total_time += lyr_time;
       std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
                   ": Finish in " << lyr_time << "s." << std::endl;
       cur_params += (CHNEL[0] * 3 * KERNL[0] * KERNL[0] + CHNEL[0]);
@@ -137,6 +140,13 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
       if (0 == pingpang)
       {
         perf.start();
+
+        //char *bufferA_char = reinterpret_cast<char *>(bufferA);
+        //std::ifstream input("./data/conv5_2fp16.bin", std::ios::binary);
+        //input.read(bufferA_char, SHAPE[c_layer-1] * SHAPE[c_layer-1]*CHNEL[c_layer-1]*sizeof(Dtype));
+        //input.close();
+        //cur_params += 12354880;
+
         conv_fpga(bufferA, 
                   cur_params,
                   bufferB,
@@ -178,6 +188,7 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
       }
       uint64_t cpu_cycles = perf.avg_cpu_cycles();
       float lyr_time = (float)cpu_cycles / 1.5e9;
+      total_time += lyr_time;
       std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
                   ": Finish in " << lyr_time << "s." << std::endl;
 
@@ -186,13 +197,15 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
                      CHNEL[c_layer]);
     } /* c_layer != 0 */
 
-    if (1 == c_layer){
+    if (12 == c_layer){
       Dtype *buffer_ptr = pingpang == 0 ? bufferA : bufferB;
       std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
                    ": Check On-chip data." << std::endl;
       computing_check(buffer_ptr, c_layer, POOL[c_layer]);
     }
   }
+  std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
+               ": Total time in conv layer, " << total_time << std::endl;
 
   /* Do FC layer by layer */
   for (int f_layer = 0; f_layer < FC_LAYER_NUM; f_layer++)
