@@ -46,7 +46,7 @@ typedef half Dtype;
 // Define buffer depth for weights and bias
 // Note the buffer depth is closely related to kernel size,
 // input and output kernel number
-#define W_BUF_DEPTH 288
+#define W_BUF_DEPTH 1152
 #define B_BUF_DEPTH 512
 // Define buffer depth for output
 // Note this buffer depth is also closely related to model,

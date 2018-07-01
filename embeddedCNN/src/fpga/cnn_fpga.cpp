@@ -77,17 +77,17 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
     switch (c_layer){
       case 0:  w_isec = 0; break;
       case 1:
-      case 2:
+      case 2:  w_isec = 2; break;
+      case 3:
       case 4:
-      case 5:
-      case 6:  w_isec = 2; break;
-      case 3:  w_isec = 3; break;
       case 7:
       case 8:
       case 9:
       case 10:
       case 11:
-      case 12: w_isec = 1; break;
+      case 12:  w_isec = 3; break;
+      case 5:
+      case 6:  w_isec = 4; break;
       default: w_isec = 0; break;
     }
     int col_num = SHAPE[c_layer];

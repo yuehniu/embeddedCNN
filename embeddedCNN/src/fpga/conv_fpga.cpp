@@ -88,25 +88,17 @@ void conv_fpga(Dtype *In,    // Variable DMA transfer length
                bool Pool     // Whether pooling
               )
 {
-  // Set on-chip buffer
-  //Dtype in_buf[ITILE][(FTILE_W+2) * FTILE_H];
-  //#pragma HLS array_partition variable=in_buf complete dim=1
-
   Dtype out_buf[OTILE][O_BUF_ROW * FTILE_W * FTILE_H * O_BUF_SEC];
   #pragma HLS array_partition variable=out_buf complete dim=1
 
   Dtype pool_buf[OTILE][FTILE_W * O_BUF_SEC / 2];
   #pragma HLS array_partition variable=pool_buf complete dim=1
 
-  //Dtype w_buf[OTILE * ITILE][W_BUF_DEPTH];
-  //#pragma HLS array_partition variable=w_buf complete dim=1
-
   Dtype b_buf[B_BUF_DEPTH];
   #pragma HLS array_partition variable=b_buf complete
  
   int row;
   int r = 0;
-  //int n_i = 0;
   int rowmod = 0;
   int out_offset = 0;
 
@@ -139,80 +131,6 @@ void conv_fpga(Dtype *In,    // Variable DMA transfer length
                r,
                ColNum 
                );
-    // n_i = 0;
-    //for (int n = 0; n < ISec; n++){ /* Input channel */
-    ////#pragma HLS DATAFLOW
-    //#pragma HLS loop_tripcount min=1 max=1
-    //  // Read input feature
-    //  buf_read(In + (row * IChnl + (n<<ITILSHFT)) * ColNum, // incr In
-    //           in_buf, 
-    //           ChnlRead,
-    //           ColNum+2); 
-    //  #ifdef CHECK_CPU
-    //  std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
-    //               ": Check InBuf." << std::endl;
-    //  inbuf_check(In, in_buf, Lyr, row * ISec + n);
-    //  #endif
-
-    //  conv_ochnl(Param, in_buf, b_buf, out_buf,
-    //             ChnlRead,
-    //             OTILE,
-    //             OChnl,
-    //             Kern,
-    //             n,
-    //             WISec,
-    //             OSec,
-    //             row,
-    //             Lyr,
-    //             r,
-    //             ColNum);
-      //int m_i = 0;
-      //for(int m = 0; m < OSec; m++){ /* Output channel */
-      //#pragma HLS DATAFLOW
-      //#pragma HLS loop_tripcount min=2 max=2
-      //  // Conditional read weights 
-      //  weight_read(Param + ((n<<ITILSHFT) * OChnl + (m<<OTILSHFT) * ChnlRead) * Kern * Kern, 
-      //              w_buf, 
-      //              ChnlRead,
-      //              OTILE,
-      //              Kern,
-      //              (n - ((n >> WISec) << WISec)) * OSec + m, // Read to which sec
-      //              (0 == row) || (Lyr > 3)   // Whether to read
-      //              );
-      //  #ifdef CHECK_CPU
-      //  // w_buf check
-      //  if ((0 == row)){
-      //    std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
-      //                 ": Check WBuf." << std::endl;
-      //    wbuf_check(Param + ((n<<ITILSHFT) * OChnl + (m<<OTILSHFT) * ChnlRead) * Kern * Kern,
-      //               w_buf,
-      //               ChnlRead,
-      //               OTILE,
-      //               Kern,
-      //               (n - ((n >> WISec) << WISec)) * OSec + m);
-      //  }
-      //  #endif
-
-      //  // Compute in parallel
-      //  compute(in_buf, 
-      //          w_buf, 
-      //          b_buf, 
-      //          out_buf, 
-      //          r,
-      //          ColNum, 
-      //          Kern, 
-      //          ChnlRead, 
-      //          OTILE, 
-      //          OSec,
-      //          (n - ((n >> WISec) << WISec)),
-      //          m, 
-      //          n == 0);
-
-      //  //m_i += 1;
-      //}/* Output channel */  
-
-      //n_i += 1;
-    //} /* Input channel */
   
   // Write on-chip data to external mem
   buf_write(out_buf, pool_buf, Out + out_offset, 
@@ -275,19 +193,17 @@ void buf_read(Dtype * In,
               int ChnlNum,
               int ColNum)
 {
-  for (int n = 0; n < ITILE; n++){
+  for (int n = 0; n < ChnlNum; n++){
   #pragma HLS loop_tripcount min=16 max=16
     for (int r = 0; r < FTILE_H; r++){
     #pragma HLS loop_tripcount min=1 max=1
-      for (int c = 0; c < (FTILE_W+2); c++){
+      for (int c = 0; c < ColNum; c++){
       #pragma HLS loop_tripcount min=224 max=224
       #pragma HLS PIPELINE
-        if (n < ChnlNum && c < ColNum){
-          if ((0 == c) || (ColNum-1 == c))
-            InBuf[n][r * ColNum + c] = (Dtype)0.0;
-          else
-            InBuf[n][r * ColNum + c] = *In++;
-        }
+        if ((0 == c) || (ColNum-1 == c))
+          InBuf[n][r * ColNum + c] = (Dtype)0.0;
+        else
+          InBuf[n][r * ColNum + c] = *In++;
       }
     }
   }/* for: input channel tile */
@@ -317,7 +233,7 @@ void conv_ichnl(Dtype *In,
   #pragma HLS array_partition variable=in_buf complete dim=1
 
   for (int n = 0; n < ISec; n++){ /* Input channel */
-  #pragma HLS DATAFLOW
+  //#pragma HLS DATAFLOW
   #pragma HLS loop_tripcount min=4 max=4
     // Read input feature
     buf_read(In + (Row * IChnl + (n<<ITILSHFT)) * ColNum, // incr In
@@ -367,17 +283,18 @@ void conv_ochnl(Dtype *Param,
   #pragma HLS array_partition variable=w_buf complete dim=1
 
   for(int m = 0; m < OSec; m++){ /* Output channel */
-  #pragma HLS DATAFLOW
+  //#pragma HLS DATAFLOW
   #pragma HLS loop_tripcount min=4 max=4
     // Conditional read weights 
-    weight_read(Param + ((Ni<<ITILSHFT) * OChnl + (m<<OTILSHFT) * IChnlTil) * Kern * Kern, 
-                w_buf, 
-                IChnlTil,
-                OTILE,
-                Kern,
-                (Ni - ((Ni >> WISec) << WISec)) * OSec + m, // Read to which sec
-                (0 == Row) || (Lyr > 3)   // Whether to read
-                );
+    if (0 == Row || (Lyr > 6))
+      weight_read(Param + ((Ni<<ITILSHFT) * OChnl + (m<<OTILSHFT) * IChnlTil) * Kern * Kern, 
+                  w_buf, 
+                  IChnlTil,
+                  OTILE,
+                  Kern,
+                  (Ni - ((Ni >> WISec) << WISec)) * OSec + m, // Read to which sec
+                  true   // Whether to read
+                  );
     #ifdef CHECK_CPU
     // w_buf check
     if ((0 == row)){
@@ -434,12 +351,12 @@ void weight_read(Dtype *Param,
 {
   for (int m = 0; m < OTILE; m++) {
   #pragma HLS loop_tripcount min=32 max=32
-   for (int n = 0; n < ITILE; n++) {
+   for (int n = 0; n < IChnlTil; n++) {
    #pragma HLS loop_tripcount min=16 max=16
      for (int k = 0; k < Kern * Kern; k++)
      #pragma HLS loop_tripcount min=9 max=9
      #pragma HLS PIPELINE
-       if(Read && n < IChnlTil)
+       if(Read)
          Wbuf[m * ITILE + n][Sec * Kern * Kern + k] = *Param++;
    }
   }
