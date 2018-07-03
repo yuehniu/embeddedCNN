@@ -41,9 +41,11 @@ inline void mem_check(Dtype *Mem)
 
 /* Check in_buf */
 void inbuf_check(Dtype *Ref, 
-                 Dtype InBuf[ITILE][(FTILE_W+2) * FTILE_H], 
+                 Dtype InBuf[ITILE][I_BUF_DEPTH], 
                  int Lyr, 
-                 int Til);
+                 int RowsPre,
+                 int RowsRead,
+                 int RowsValid);
 
 /* Check w_buf */
 void wbuf_check(Dtype *Param, 

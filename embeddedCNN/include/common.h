@@ -55,7 +55,9 @@ typedef half Dtype;
 #define O_BUF_SEC 16 // 512/32
 // Define the number of rows buffered in output buffer.
 // This number is closely related to kernel size and strides.
-#define O_BUF_ROW 3
+#define I_BUF_DEPTH 1000
+#define I_PRE_DEPTH 1920
+#define O_BUF_DEPTH (16 * 28 * 28)
 
 /* Conv unit interface */
 #define FTRANS_SIZE (3 * 224 * 224)

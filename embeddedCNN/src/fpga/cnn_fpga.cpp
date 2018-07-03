@@ -74,20 +74,21 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
   for (int c_layer = 0; c_layer < CONV_LAYER_NUM; c_layer++)
   {
     int w_isec = 0; // 2^w_isec
+    int til_num = 0;
     switch (c_layer){
-      case 0:  w_isec = 0; break;
-      case 1:
-      case 2:  w_isec = 2; break;
-      case 3:
-      case 4:
-      case 7:
-      case 8:
-      case 9:
-      case 10:
-      case 11:
-      case 12:  w_isec = 3; break;
-      case 5:
-      case 6:  w_isec = 4; break;
+      case 0:  {w_isec = 0; til_num = 112; break;}
+      case 1:  {w_isec = 2; til_num = 112; break;}
+      case 2:  {w_isec = 2; til_num = 19; break;}
+      case 3:  {w_isec = 3; til_num = 19; break;}
+      case 4:  {w_isec = 3; til_num = 4;break;}
+      case 5:  {w_isec = 4; til_num = 4;break;}
+      case 6:  {w_isec = 4; til_num = 4;break;}
+      case 7:  {w_isec = 3; til_num = 1;break;}
+      case 8:  {w_isec = 3; til_num = 1;break;}
+      case 9:  {w_isec = 3; til_num = 1;break;}
+      case 10: {w_isec = 3; til_num = 1;break;}
+      case 11: {w_isec = 3; til_num = 1;break;}
+      case 12: {w_isec = 3; til_num = 1;break;} 
       default: w_isec = 0; break;
     }
     int col_num = SHAPE[c_layer];
@@ -109,12 +110,12 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
                 c_layer, 
                 row_num, 
                 col_num, 
-                chnl_to_read, 
                 KERNL[c_layer], 
                 chnl_to_read, 
                 isec, 
                 CHNEL[c_layer], 
                 osec, 
+                til_num,
                 w_isec,
                 pool_div,
                 POOL[c_layer]);
@@ -128,7 +129,7 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
       pingpang = 1;
     }
     else { /* c_layer != 0 */
-      int chnl_to_read = ITILE;
+      //int chnl_to_read = ITILE;
       int isec = CHNEL[c_layer - 1] / ITILE;
       int osec = CHNEL[c_layer] / OTILE;
       int pool_div = 1;
@@ -153,12 +154,12 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
                   c_layer, 
                   row_num, 
                   col_num, 
-                  chnl_to_read, 
                   KERNL[c_layer], 
                   CHNEL[c_layer - 1], 
                   isec, 
                   CHNEL[c_layer], 
                   osec, 
+                  til_num,
                   w_isec,
                   pool_div,
                   POOL[c_layer]);
@@ -174,12 +175,12 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
                   c_layer, 
                   row_num, 
                   col_num, 
-                  chnl_to_read, 
                   KERNL[c_layer], 
                   CHNEL[c_layer - 1], 
                   isec, 
                   CHNEL[c_layer], 
                   osec, 
+                  til_num,
                   w_isec,
                   pool_div,
                   POOL[c_layer]);
@@ -197,7 +198,7 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
                      CHNEL[c_layer]);
     } /* c_layer != 0 */
 
-    if (12 == c_layer){
+    if (CONV_LAYER_NUM-1 == c_layer){
       Dtype *buffer_ptr = pingpang == 0 ? bufferA : bufferB;
       std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
                    ": Check On-chip data." << std::endl;

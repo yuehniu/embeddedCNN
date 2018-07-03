@@ -53,27 +53,45 @@ bool dataflow_check(Dtype * Ref, Dtype * Res, int Cnt)
 
 /* Check in_buf */
 void inbuf_check(Dtype *Ref, 
-                 Dtype InBuf[ITILE][(FTILE_W+2)*FTILE_H], 
+                 Dtype InBuf[ITILE][I_BUF_DEPTH], 
                  int Lyr, 
-                 int Til)
+                 int RowsPre,
+                 int RowsRead,
+                 int RowsValid)
 {
-  
+  static int til;
+  if (1 == RowsPre) til = 0;
+  else              til += 1;
   std::ofstream log("check_InBuf.log", std::ios::app);
   int chnl_til_num = Lyr == 0 ? 3 : ITILE; 
+  int chnl_num = Lyr == 0 ? 3 : CHNEL[Lyr - 1];
   int col_num = SHAPE[Lyr] + 2;
   Dtype *ref_ptr = Ref;
   log << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
-         ": Check " << Til << "th tile." << std::endl;
+         ": Check " << til << "th tile." << std::endl;
     for (int ch = 0; ch < chnl_til_num; ch++){
-      for (int row = 0; row < FTILE_H; row++){
+      for (int row = 0; row < RowsPre+RowsValid; row++){
         for (int col = 0; col < col_num; col++){
           Dtype ref = 0.0;
           if ((0 == col) || (col_num-1 == col))
             ref = 0.0; 
-          else
-            ref = *(ref_ptr+ Til * chnl_til_num * FTILE_H * (col_num-2) + 
-                          ch * FTILE_H * (col_num-2) +
-                          row * (col_num-2) + col - 1);
+          else {
+            if (0 == row){
+              if (1 == RowsPre) 
+                ref = 0.0;
+              else 
+                ref = *(ref_ptr - 2 * chnl_num * (col_num-2) + ch * (col_num-2) + col - 1);
+            }
+            else if (1 == row){
+              if (1 == RowsPre) 
+                ref = *(ref_ptr + ch * (col_num-2) + col - 1);
+              else
+                ref = *(ref_ptr - chnl_num * (col_num-2) + ch * (col_num-2) + col - 1);
+            }
+            else {
+                ref = *(ref_ptr + (row - RowsPre) * chnl_num * (col_num-2) + ch * (col_num-2) + col - 1);
+            }
+          }
           Dtype inbuf = InBuf[ch][row * col_num + col];
           if (ref == inbuf)
             log << "[LOG] " << __FUNCTION__ << ", " << __LINE__ <<

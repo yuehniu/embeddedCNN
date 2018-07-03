@@ -44,5 +44,7 @@ void get_from_file(Dtype * Img)
   std::ifstream img_bin("./data/imgfp16.bin", std::ios::binary);
   char * in_buf = reinterpret_cast<char *>(Img);
   img_bin.read(in_buf, 3 * IMG_W * IMG_H * sizeof(Dtype));
+
+  img_bin.close();
   return;
 }
