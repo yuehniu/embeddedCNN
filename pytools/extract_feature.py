@@ -19,14 +19,14 @@ import os
 
 
 # Load model and weights
-if os.path.isfile(caffe_home + 'models/bvlc_vggnet/VGG_ILSVRC_16_layers.caffemodel'):
+if os.path.isfile(caffe_home + 'models/bvlc_vggnet/VGG_ILSVRC_16_layers_fc6_256_fc7_256.caffemodel'):
   print '[INFO] CaffeNet found.'
 else:
   print '[ERROR] No CaffeNet file.'
 
 caffe.set_mode_cpu()
-model_def = caffe_home + 'models/bvlc_vggnet/deploy.prototxt'
-model_param = caffe_home + 'models/bvlc_vggnet/VGG_ILSVRC_16_layers.caffemodel'
+model_def = caffe_home + 'models/bvlc_vggnet/deploy_fc6_256_fc7_256.prototxt'
+model_param = caffe_home + 'models/bvlc_vggnet/VGG_ILSVRC_16_layers_fc6_256_fc7_256.caffemodel'
 net = caffe.Net(model_def, model_param, caffe.TEST)
 
 
@@ -52,7 +52,7 @@ output_prob = output['prob'][0]
 print '[INFO] Predicted class is:', output_prob.argmax()
 
 # Extract data
-img = net.blobs['data'].data
+img = net.blobs['fc8'].data
 print '[INFO] Data shape:', img.shape
 
 # Convert FP32 to FP16
@@ -61,21 +61,22 @@ if _fp16_:
   print '[INFO] Convert FP32 to FP16...'
   img_fp16 = np.array(img, dtype = np.float16)
 
-_reshape_ = True
+_reshape_ = False
 if _reshape_:
   print '[INFO] Rearrange data storage...'
-  til_num = 224;
-  img_re = np.zeros((224, 3, 224), dtype=np.float16);
-  for ch in range(0, 3):
-    for row in range(0, 224):
+  til_num = 14;
+  chnl = 512;
+  img_re = np.zeros((til_num, chnl, til_num), dtype=np.float16);
+  for ch in range(0, chnl):
+    for row in range(0, til_num):
       img_re[row, ch, :] = img_fp16[0, ch, row, :];
 
 print '[INFO] Write data to disk...'
-file_handle = open(r"../data/img.bin", "wb")
+file_handle = open(r"../data/fc8.bin", "wb")
 file_handle.write(img)
 file_handle.close()
-file_handle = open(r"../data/imgfp16.bin", "wb")
-file_handle.write(img_re)
+file_handle = open(r"../data/fc8fp16.bin", "wb")
+file_handle.write(img_fp16)
 file_handle.close()
 
 # Show image
