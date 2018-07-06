@@ -83,9 +83,27 @@ for lyr in fc_lyr:
   # Write bias fist
   fp32_handle.write(bias)
   fp16_handle.write(bias_fp16)
+
+  # Change weights mem arrangement
+  weights_rearr = weights_fp16.copy()
+  if 'fc6_1' == lyr:
+    for ochnl in range(0, dim[0]):
+      for row in range(0, 7):
+        for ichnl in range(0, 512):
+          offset1 = row * 512 * 7 + ichnl * 7;
+          offset2 = ichnl * 7 * 7 + row * 7;
+          weights_rearr[ochnl, offset1:offset1+7] = weights_fp16[ochnl, offset2:offset2+7].copy()
+
+  if(dim[0] < 1024):
+    for isec in range(0, dim[1]/64):
+      fp16_handle.write(weights_rearr[:, isec * 64 : (isec+1) * 64].copy());  
+  else:
+    for osec in range(0, dim[0]/1024):
+      for isec in range(0, dim[1]/64):
+        fp16_handle.write(weights_rearr[osec * 1024:(osec+1) * 1024, isec * 64 : (isec+1) * 64].copy())
+       
   # Write weights
   fp32_handle.write(weights)
-  fp16_handle.write(weights_fp16)
 
 fp32_handle.close()
 fp16_handle.close()
