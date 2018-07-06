@@ -204,7 +204,7 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
       Dtype *buffer_ptr = pingpang == 0 ? bufferA : bufferB;
       std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
                    ": Check On-chip data." << std::endl;
-      computing_check(buffer_ptr, c_layer, POOL[c_layer]);
+      conv_check(buffer_ptr, c_layer, POOL[c_layer]);
     }
     #endif
   }

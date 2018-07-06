@@ -46,30 +46,33 @@ inline void mem_check(Dtype *Mem)
 }
 
 /* Check in_buf */
-void inbuf_check(Dtype *Ref, 
-                 Dtype InBuf[ITILE][I_BUF_DEPTH], 
-                 int Lyr, 
-                 int RowsPre,
-                 int RowsRead,
-                 int RowsValid);
+void conv_inbuf_check(
+  Dtype *Ref, 
+  Dtype InBuf[ITILE][I_BUF_DEPTH], 
+  int Lyr, 
+  int RowsPre,
+  int RowsRead,
+  int RowsValid
+);
 
 /* Check w_buf */
-void wbuf_check(Dtype *Param, 
-                Dtype WBuf[OTILE * ITILE][W_BUF_DEPTH],
-                int IChnlTil,
-                int OChnlTil,
-                int Kern,
-                int Sec
-                );
+void conv_wbuf_check(
+  Dtype *Param, 
+  Dtype WBuf[OTILE * ITILE][W_BUF_DEPTH],
+  int IChnlTil,
+  int OChnlTil,
+  int Kern,
+  int Sec
+);
 
 /* Check b_buf */
-void bbuf_check(Dtype *Param, Dtype BBuf[B_BUF_DEPTH], int OChnl);
+void conv_bias_check(Dtype *Param, Dtype BBuf[B_BUF_DEPTH], int OChnl);
 
 /* Check 0n-chip data */
 void onchip_check(Dtype *Ref, Dtype *Chip, int OChnl);
 
 /* Check computing result */
-void computing_check(Dtype *Out, int Lyr, bool Pooling);
+void conv_check(Dtype *Out, int Lyr, bool Pooling);
 
 /* Check output from FC */
 void fc_check(Dtype *Out, int Lyr);

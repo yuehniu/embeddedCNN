@@ -26,9 +26,17 @@
 void fc_fpga(Dtype *In, Dtype *Param, Dtype *Out);
 
 // FC for one layer
-void fc_lyr(Dtype *In, Dtype BufferA[BUFA_DEPTH], 
-            Dtype *Param, Dtype BufferB[BUFB_DEPTH], 
-            int ITils, int OTils, int ONum, int WTils, int Lyr);
+void fc_lyr(
+  Dtype *In, 
+  Dtype BufferA[BUFA_DEPTH], 
+  Dtype *Param, 
+  Dtype BufferB[BUFB_DEPTH], 
+  int ITils, 
+  int OTils, 
+  int ONum, 
+  int WTils, 
+  int Lyr
+);
 
 // Read bias
 void fc_bias_read(Dtype *Param, Dtype* BBuf, int ONum);
@@ -40,11 +48,13 @@ void fc_buf_read(Dtype *In, Dtype Buffer[BUFA_DEPTH], int Len);
 void fc_weight_read(Dtype *Param, Dtype WBuf[64][1024], int ONum);
 
 // Compute
-void fc_compute(Dtype *In, 
-                Dtype *Out, 
-                Dtype WBuf[64][1024], 
-                int OTil, int ONum, int WTil, 
-                int Lyr, bool Relu,  bool Last);
+void fc_compute(
+  Dtype *In, 
+  Dtype *Out, 
+  Dtype WBuf[64][1024], 
+  int OTil, int ONum, int WTil, 
+  int Lyr, bool Relu,  bool Last
+);
 
 // write output off
 void fc_buf_write(Dtype Buffer[BUFB_DEPTH], Dtype *Out);

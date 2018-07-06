@@ -33,22 +33,23 @@
   
 */
 
-void conv_fpga(Dtype *In,    // Variable DMA transfer length 
-               Dtype *Param, // Variable DMA transfer length
-               Dtype *Out,   // Varaieble DMA transfer length
-               int Lyr,      // Current layer index 
-               int RowNum,   // Row number
-               int ColNum,   // Col number
-               int Kern,     // Kernel size
-               int IChnl,    // Input param channel to read
-               int ISec,     // Input sec number
-               int OChnl,    // Output param channel to read
-               int OSec,     // Out sec number
-               int TilNum,   // Total tile number
-               int WISec,    // Input sec number in buf for each layer
-               int PoolDiv,
-               bool Pool     // Whether pooling
-              )
+void conv_fpga(
+  Dtype *In,    // Variable DMA transfer length 
+  Dtype *Param, // Variable DMA transfer length
+  Dtype *Out,   // Varaieble DMA transfer length
+  int Lyr,      // Current layer index 
+  int RowNum,   // Row number
+  int ColNum,   // Col number
+  int Kern,     // Kernel size
+  int IChnl,    // Input param channel to read
+  int ISec,     // Input sec number
+  int OChnl,    // Output param channel to read
+  int OSec,     // Out sec number
+  int TilNum,   // Total tile number
+  int WISec,    // Input sec number in buf for each layer
+  int PoolDiv,
+  bool Pool     // Whether pooling
+)
 {
   Dtype out_buf[OTILE][O_BUF_DEPTH];
   #pragma HLS array_partition variable=out_buf complete dim=1
@@ -83,12 +84,12 @@ void conv_fpga(Dtype *In,    // Variable DMA transfer length
   }
 
   // Read bias first
-  bias_read(Param, b_buf, OChnl);
+  conv_bias_read(Param, b_buf, OChnl);
   #ifdef CHECK_CPU
   // b_buf check
   std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
                ": Check BBuf." << std::endl;
-  bbuf_check(Param, b_buf, OChnl);
+  conv_bias_check(Param, b_buf, OChnl);
   #endif
   Param += OChnl;
   for (int til = 0; til < TilNum; til++) { /* Row loop */
@@ -106,32 +107,34 @@ void conv_fpga(Dtype *In,    // Variable DMA transfer length
     int rows_compute = TilNum-1 == til ? rows_last + rows_pre + 1: rows;
     int rows_write = (TilNum-1 == til ? rows_last + rows_pre + 1: rows) - Kern + 1;
 
-    conv_ichnl(In, Param, b_buf, out_buf,
-               itile,
-               OTILE,
-               IChnl,
-               OChnl,
-               Kern,
-               WISec,
-               ISec,
-               OSec, 
-               Lyr,
-               til,
-               ColNum,
-               rows_new,
-               rows_valid,
-               rows_compute
-               );
+    conv_ichnl(
+      In, Param, b_buf, out_buf,
+      itile,
+      OTILE,
+      IChnl,
+      OChnl,
+      Kern,
+      WISec,
+      ISec,
+      OSec, 
+      Lyr,
+      til,
+      ColNum,
+      rows_new,
+      rows_valid,
+      rows_compute
+    );
 
     In += IChnl * rows_valid * ColNum;
     
     // Write on-chip data to external mem
-    buf_write(out_buf, Out + out_offset, 
-              Pool,         // Whether pooling
-              rows_write,
-              ColNum,       // Col number in cur layer
-              OSec
-              );
+    conv_buf_write(
+      out_buf, Out + out_offset, 
+      Pool,         // Whether pooling
+      rows_write,
+      ColNum,       // Col number in cur layer
+      OSec
+    );
     if (Pool){
       out_offset += OChnl * rows_write * ColNum >> 2;
     }
@@ -167,15 +170,17 @@ void conv_fpga(Dtype *In,    // Variable DMA transfer length
     - In different layer, different number of rows might
     be read to improve ram efficiency. 
 */
-void buf_read(Dtype * In, 
-              Dtype InBuf[ITILE][I_BUF_DEPTH],
-              int IChnlTil,
-              int IChnl,
-              int Sec,
-              int RowsPre,
-              int RowsRead,
-              int RowsValid,
-              int ColNum)
+void conv_buf_read(
+  Dtype * In, 
+  Dtype InBuf[ITILE][I_BUF_DEPTH],
+  int IChnlTil,
+  int IChnl,
+  int Sec,
+  int RowsPre,
+  int RowsRead,
+  int RowsValid,
+  int ColNum
+)
 {
   static Dtype in_pre[ITILE][I_PRE_DEPTH];
 
@@ -250,24 +255,26 @@ void buf_read(Dtype * In,
     RowsVlaid, rows to be valid.
     Rows, rows to be computed.
 */
-void conv_ichnl(Dtype *In,
-                Dtype *Param,
-                Dtype BBuf[B_BUF_DEPTH],
-                Dtype OutBuf[OTILE][O_BUF_DEPTH],
-                int IChnlTil,
-                int OChnlTil,
-                int IChnl,
-                int OChnl,
-                int Kern,
-                int WISec,
-                int ISec,
-                int OSec,
-                int Lyr,
-                int Til,
-                int ColNum,
-                int RowsRead,
-                int RowsValid,
-                int Rows)
+void conv_ichnl(
+  Dtype *In,
+  Dtype *Param,
+  Dtype BBuf[B_BUF_DEPTH],
+  Dtype OutBuf[OTILE][O_BUF_DEPTH],
+  int IChnlTil,
+  int OChnlTil,
+  int IChnl,
+  int OChnl,
+  int Kern,
+  int WISec,
+  int ISec,
+  int OSec,
+  int Lyr,
+  int Til,
+  int ColNum,
+  int RowsRead,
+  int RowsValid,
+  int Rows
+)
 {
   // Set on-chip buffer
   Dtype in_buf[ITILE][I_BUF_DEPTH];
@@ -277,38 +284,44 @@ void conv_ichnl(Dtype *In,
   //#pragma HLS DATAFLOW
   #pragma HLS loop_tripcount min=4 max=4
     // Read input feature
-    buf_read(In + (n << ITILSHFT) * ColNum, 
-             in_buf, 
-             IChnlTil,
-             IChnl,
-             n,
-             0 == Til ? 1 : 2, // rows pre-read
-             RowsRead,
-             RowsValid,
-             ColNum+2); 
+    conv_buf_read(
+      In + (n << ITILSHFT) * ColNum, 
+      in_buf, 
+      IChnlTil,
+      IChnl,
+      n,
+      0 == Til ? 1 : 2, // rows pre-read
+      RowsRead,
+      RowsValid,
+      ColNum+2
+    ); 
     #ifdef CHECK_CPU
     //std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
     //             ": Check InBuf." << std::endl;
-    inbuf_check(In + (n << ITILSHFT) * ColNum, 
-                in_buf, 
-                Lyr, 
-                0 == Til ? 1 : 2, 
-                RowsRead, 
-                RowsValid);
+    conv_inbuf_check(
+      In + (n << ITILSHFT) * ColNum, 
+      in_buf, 
+      Lyr, 
+      0 == Til ? 1 : 2, 
+      RowsRead, 
+      RowsValid
+    );
     #endif
 
-    conv_ochnl(Param, in_buf, BBuf, OutBuf,
-               IChnlTil,
-               OTILE,
-               OChnl,
-               Kern,
-               n,
-               WISec,
-               OSec,
-               Til,
-               Lyr,
-               Rows,
-               ColNum + 2);
+    conv_ochnl(
+      Param, in_buf, BBuf, OutBuf,
+      IChnlTil,
+      OTILE,
+      OChnl,
+      Kern,
+      n,
+      WISec,
+      OSec,
+      Til,
+      Lyr,
+      Rows,
+      ColNum + 2
+    );
   }
 
   return;
@@ -335,21 +348,23 @@ void conv_ichnl(Dtype *In,
     RowNum, current rows to be compute.
     ColNum, current cols.
 */
-void conv_ochnl(Dtype *Param,
-                Dtype InBuf[ITILE][I_BUF_DEPTH],
-                Dtype BBuf[B_BUF_DEPTH],
-                Dtype OutBuf[OTILE][O_BUF_DEPTH],
-                int IChnlTil,
-                int OChnlTil,
-                int OChnl,
-                int Kern,
-                int Ni,
-                int WISec,
-                int OSec,
-                int Til,
-                int Lyr,
-                int RowNum,
-                int ColNum)
+void conv_ochnl(
+  Dtype *Param,
+  Dtype InBuf[ITILE][I_BUF_DEPTH],
+  Dtype BBuf[B_BUF_DEPTH],
+  Dtype OutBuf[OTILE][O_BUF_DEPTH],
+  int IChnlTil,
+  int OChnlTil,
+  int OChnl,
+  int Kern,
+  int Ni,
+  int WISec,
+  int OSec,
+  int Til,
+  int Lyr,
+  int RowNum,
+  int ColNum
+)
 {
   static Dtype w_buf[OTILE * ITILE][W_BUF_DEPTH];
   #pragma HLS array_partition variable=w_buf complete dim=1
@@ -359,42 +374,47 @@ void conv_ochnl(Dtype *Param,
   #pragma HLS loop_tripcount min=4 max=4
     // Conditional read weights 
     if (0 == Til || (Lyr > 12))
-      weight_read(Param + ((Ni<<ITILSHFT) * OChnl + (m<<OTILSHFT) * IChnlTil) * Kern * Kern, 
-                  w_buf, 
-                  IChnlTil,
-                  OTILE,
-                  Kern,
-                  (Ni - ((Ni >> WISec) << WISec)) * OSec + m, // Read to which sec
-                  true   // Whether to read
-                  );
+      conv_weight_read(
+        Param + ((Ni<<ITILSHFT) * OChnl + (m<<OTILSHFT) * IChnlTil) * Kern * Kern, 
+        w_buf, 
+        IChnlTil,
+        OTILE,
+        Kern,
+        (Ni - ((Ni >> WISec) << WISec)) * OSec + m, // Read to which sec
+        true   // Whether to read
+      );
     #ifdef CHECK_CPU
     // w_buf check
     if ((0 == Til)){
       std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
                    ": Check WBuf." << std::endl;
-      wbuf_check(Param + ((Ni<<ITILSHFT) * OChnl + (m<<OTILSHFT) * IChnlTil) * Kern * Kern,
-                 w_buf,
-                 IChnlTil,
-                 OTILE,
-                 Kern,
-                 (Ni - ((Ni >> WISec) << WISec)) * OSec + m);
+      conv_wbuf_check(
+        Param + ((Ni<<ITILSHFT) * OChnl + (m<<OTILSHFT) * IChnlTil) * Kern * Kern,
+        w_buf,
+        IChnlTil,
+        OTILE,
+        Kern,
+        (Ni - ((Ni >> WISec) << WISec)) * OSec + m
+      );
     }
     #endif
 
     // Compute in parallel
-    compute(InBuf, 
-            w_buf, 
-            BBuf, 
-            OutBuf, 
-            RowNum,
-            ColNum, 
-            Kern, 
-            IChnlTil, 
-            OTILE, 
-            OSec,
-            (Ni - ((Ni >> WISec) << WISec)),
-            m, 
-            Ni == 0);
+    conv_compute(
+      InBuf, 
+      w_buf, 
+      BBuf, 
+      OutBuf, 
+      RowNum,
+      ColNum, 
+      Kern, 
+      IChnlTil, 
+      OTILE, 
+      OSec,
+      (Ni - ((Ni >> WISec) << WISec)),
+      m, 
+      Ni == 0
+    );
 
     //m_i += 1;
   }/* Output channel */  
@@ -422,14 +442,15 @@ void conv_ochnl(Dtype *Param,
     external again in next few cycles.
   
 */
-void weight_read(Dtype *Param, 
-                 Dtype Wbuf[OTILE * ITILE][W_BUF_DEPTH],
-                 int IChnlTil, // Input channel tile to read
-                 int OChnlTil, // Output channel tile to read
-                 int Kern,     // Kernel size
-                 int Sec,      // Start sec position
-                 bool Read     // Wheter to read
-                )
+void conv_weight_read(
+  Dtype *Param, 
+  Dtype Wbuf[OTILE * ITILE][W_BUF_DEPTH],
+  int IChnlTil, // Input channel tile to read
+  int OChnlTil, // Output channel tile to read
+  int Kern,     // Kernel size
+  int Sec,      // Start sec position
+  bool Read     // Wheter to read
+)
 {
   for (int m = 0; m < OTILE; m++) {
   #pragma HLS loop_tripcount min=32 max=32
@@ -455,7 +476,7 @@ void weight_read(Dtype *Param,
     Bbuf, on-chip bias buffer
     OChnl,output channel to read 
 */
-void bias_read(Dtype *Param, Dtype Bbuf[B_BUF_DEPTH], int OChnl)
+void conv_bias_read(Dtype *Param, Dtype Bbuf[B_BUF_DEPTH], int OChnl)
 {
   for (int n = 0; n < OChnl; n++){
   #pragma HLS PIPELINE
@@ -493,19 +514,21 @@ void bias_read(Dtype *Param, Dtype Bbuf[B_BUF_DEPTH], int OChnl)
     codes will be needed to modify for other stride size. 
 
 */
-void compute(Dtype InBuf[ITILE][I_BUF_DEPTH],
-             Dtype WBuf[OTILE * ITILE][W_BUF_DEPTH],
-             Dtype BBuf[B_BUF_DEPTH],
-             Dtype OutBuf[OTILE][O_BUF_DEPTH],
-             int RowNum,
-             int ColNum,
-             int Kern,
-             int IChnlTil,
-             int OChnlTil,
-             int OTilNum,
-             int ISec,
-             int OSec,
-             bool LoadBias)
+void conv_compute(
+  Dtype InBuf[ITILE][I_BUF_DEPTH],
+  Dtype WBuf[OTILE * ITILE][W_BUF_DEPTH],
+  Dtype BBuf[B_BUF_DEPTH],
+  Dtype OutBuf[OTILE][O_BUF_DEPTH],
+  int RowNum,
+  int ColNum,
+  int Kern,
+  int IChnlTil,
+  int OChnlTil,
+  int OTilNum,
+  int ISec,
+  int OSec,
+  bool LoadBias
+)
 {
   // Set a partial sum reg array
   //Dtype pesum[OTILE][O_BUF_ROW];
@@ -583,12 +606,14 @@ void compute(Dtype InBuf[ITILE][I_BUF_DEPTH],
   
     - This function contrain relu and max pooling op(stride 2). 
 */
-void buf_write(Dtype OutBuf[OTILE][O_BUF_DEPTH], 
-               Dtype *Out, 
-               bool Pool,
-               int RowNum,
-               int ColNum,
-               int OSec)
+void conv_buf_write(
+  Dtype OutBuf[OTILE][O_BUF_DEPTH], 
+  Dtype *Out, 
+  bool Pool,
+  int RowNum,
+  int ColNum,
+  int OSec
+)
 {
   int row_strd = Pool ? 2 : 1;
   for (int row = 0; row < RowNum; row+=row_strd){

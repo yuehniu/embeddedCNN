@@ -76,9 +76,17 @@ void fc_fpga(Dtype *In, Dtype *Param, Dtype *Out)
 /*
   FC in one layer.
 */
-void fc_lyr(Dtype *In, Dtype BufferA[BUFA_DEPTH], 
-            Dtype *Param, Dtype BufferB[BUFB_DEPTH], 
-            int ITils, int OTils, int ONum, int WTils, int Lyr)
+void fc_lyr(
+  Dtype *In, 
+  Dtype BufferA[BUFA_DEPTH], 
+  Dtype *Param, 
+  Dtype BufferB[BUFB_DEPTH], 
+  int ITils, 
+  int OTils, 
+  int ONum, 
+  int WTils, 
+  int Lyr
+)
 {
   // bias and weight buffer
   // Dtype b_buf[BUFA_DEPTH];
@@ -172,11 +180,13 @@ void fc_weight_read(Dtype *Param, Dtype WBuf[64][1024], int ONum)
 /*
   Parallel compute
 */
-void fc_compute(Dtype BufferA[BUFA_DEPTH], 
-                Dtype BufferB[BUFB_DEPTH], 
-                Dtype WBuf[64][1024], 
-                int OTil, int ONum, int WTil, 
-                int Lyr, bool Relu, bool Last)
+void fc_compute(
+  Dtype BufferA[BUFA_DEPTH], 
+  Dtype BufferB[BUFB_DEPTH], 
+  Dtype WBuf[64][1024], 
+  int OTil, int ONum, int WTil, 
+  int Lyr, bool Relu, bool Last
+)
 {
   Dtype part[64];
   #pragma HLS array_partition variable=part complete dim=1
