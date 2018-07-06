@@ -33,3 +33,12 @@ input buffer can only read one row of data, no matter how many cols it has. In t
 input buffer. For example, in conv1, 4 rows of data will be read one time; in conv2, it is 8 rows; in conv3, it is 16 rows; for
 conv4/conv5 all the rows will be read one time. The design significantly improve the on-chip buffer efficiency. Furthermore, it
 greatly reduces the runtime.
+
+fc.v0.0:
+
+  Fully-connected layer implemetation for VGGNet. It adopt pipeline arch to to matrix-vector multiplication. There are total 64
+parallel pes.
+
+conv.v0.0:
+
+  This version targets for VGGNet-16. 
