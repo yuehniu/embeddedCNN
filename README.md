@@ -9,10 +9,27 @@ Board: Xilinx Ultrascale+ ZCU 102
 
 ## FPGA system
 
-Data type: only float16 now!
+Data type: only float16 now!  
+Working frequency: 200MHz  
+Data motion network frequency: 200MHz 
 
 ## Version
 
 conv.v0.0: 
   
- This version takes long run time (about 11s). Since, parameters in certain conv layer cannot be fully loaded into on-chip mem, they have to be readed many times from DDR to FPGA. Therefore, it takes much time on the data communication.
+  This version takes long run time (about 11s). Since, parameters in certain conv layer cannot be fully loaded into on-chip mem, 
+they have to be readed many times from DDR to FPGA. Therefore, it takes much time on the data communication.
+
+conv.v0.1:
+
+  This version take 9s to run conv layers. Compared to conv.v0.0, weight buffer is larger to read more weights into on-chip mem.
+For, conv1/conv2/conv3, all the weights can be load into on-chip mem one time. For conv4/conv5, the weight buffer can only read 
+1/4 weights one time. Therefore, in conv4/conv5, it take much more time than previos layers.
+
+conv.v1.0:
+
+  This version is much different with previous version. The main different is the input buffer arrangement. In previous version,
+input buffer can only read one row of data, no matter how many cols it has. In this version, many rows of data will be read into
+input buffer. For example, in conv1, 4 rows of data will be read one time; in conv2, it is 8 rows; in conv3, it is 16 rows; for
+conv4/conv5 all the rows will be read one time. The design significantly improve the on-chip buffer efficiency. Furthermore, it
+greatly reduces the runtime.
