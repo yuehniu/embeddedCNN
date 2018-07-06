@@ -26,6 +26,7 @@
 
 #include "../../include/fpga/cnn_fpga.h"
 #include "../../include/fpga/conv_fpga.h"
+#include "../../include/fpga/fc_fpga.h"
 #include "../../include/data/get_param.h"
 #include "../include/utils/check.h"
 #include "../include/utils/performance.h"
@@ -198,23 +199,40 @@ void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params)
                      CHNEL[c_layer]);
     } /* c_layer != 0 */
 
+    #ifdef CHECK_FPGA_CONV
     if (CONV_LAYER_NUM-1 == c_layer){
       Dtype *buffer_ptr = pingpang == 0 ? bufferA : bufferB;
       std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
                    ": Check On-chip data." << std::endl;
       computing_check(buffer_ptr, c_layer, POOL[c_layer]);
     }
+    #endif
   }
   std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
-               ": Total time in conv layer, " << total_time << std::endl;
+               ": Total time in conv layer, " << total_time << "s." << std::endl;
 
   /* Do FC layer by layer */
-  for (int f_layer = 0; f_layer < FC_LAYER_NUM; f_layer++)
-  {
-    std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
-                 ": " << f_layer << "th FC layer." << std::endl;
-    //fc_fpga();
-  }
+  Dtype *fc_input = 0 == pingpang ? bufferA : bufferB;
+  //std::ifstream input_handle("./data/pool5fp16.bin", std::ios::binary);
+  //Dtype *fc_input = (Dtype *) sds_alloc(25088 * sizeof(Dtype));
+  //mem_check(fc_input);
+  //char *fc_input_char = reinterpret_cast<char *>(fc_input);
+  //input_handle.read(fc_input_char, 25088 * sizeof(Dtype));
+  //input_handle.close();
+  //cur_params += 14714688;
+  perf_counter perf;
+  std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
+               ": FC layer." << std::endl;
+  perf.start();
+  fc_fpga(fc_input, cur_params, Out);
+  perf.stop();
+  uint64_t cpu_cycles = perf.avg_cpu_cycles();
+  float fc_time = (float)cpu_cycles / 1.5e9;
+  std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ <<
+               ": Finish in " << fc_time << "s." << std::endl;
+  #ifdef CHECK_FPGA_FC
+  fc_check(Out, FC_LAYER_NUM - 1);
+  #endif
 
   // Free memory
   sds_free(bufferA); sds_free(bufferB);

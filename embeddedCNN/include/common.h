@@ -17,10 +17,6 @@
 
 #include "hls_half.h"
 
-/* check on ARM CPU? */
-//#define CHECK_CPU
-//#define CHECK_FPGA
-
 /* Data type */
 typedef half Dtype;
 
@@ -58,6 +54,12 @@ typedef half Dtype;
 #define I_BUF_DEPTH 1000
 #define I_PRE_DEPTH 1920
 #define O_BUF_DEPTH (16 * 28 * 28)
+
+/* FC params */
+#define I_LENGTH (512 * 7 * 7)
+#define P_LENGTH 13673960 // (25088*256+256+256*4096+4096+4096*256+256+256*4096+4096+4096*1000+1000)
+#define BUFA_DEPTH 4096
+#define BUFB_DEPTH 1024
 
 /* Conv unit interface */
 #define FTRANS_SIZE (3 * 224 * 224)

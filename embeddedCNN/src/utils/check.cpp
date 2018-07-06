@@ -326,3 +326,116 @@ void computing_check(Dtype *Out, int Lyr, bool Pooling)
   feature.close();
   return;
 }
+
+/* Check output from FC */
+void fc_check(Dtype *Out, int Lyr)
+{
+  std::ofstream log("check_fc_result.log", std::ios::app);
+  std::ifstream fc_out;
+  if(0 == Lyr) fc_out.open("./data/fc6_1fp16.bin", std::ios::binary);
+  else if(1 == Lyr) fc_out.open("./data/fc6_2fp16.bin", std::ios::binary);
+  else if(2 == Lyr) fc_out.open("./data/fc7_1fp16.bin", std::ios::binary);
+  else if(3 == Lyr) fc_out.open("./data/fc7_2fp16.bin", std::ios::binary);
+  else if(4 == Lyr) fc_out.open("./data/fc8fp16.bin", std::ios::binary);
+
+  int out_len = CHNEL[13 + Lyr]; 
+  Dtype *ref_out = (Dtype *)malloc(out_len * sizeof(Dtype));
+  char *ref_out_char = reinterpret_cast<char *>(ref_out);
+  fc_out.read(ref_out_char, out_len * sizeof(Dtype));
+
+  log << "[LOG] " << __FUNCTION__ << ", " << __LINE__ <<
+         ": Check " << Lyr << "th layer." << std::endl;
+
+  for (int m = 0; m < out_len; m++){
+    Dtype ref = ref_out[m];
+    Dtype out = Out[m];
+    float rel_err = (ref - out)/ ref;
+    if (-REL_ERR <= rel_err && rel_err <= REL_ERR)
+      log << "[LOG] " << __FUNCTION__ << ", " << __LINE__ <<
+             ": " << m << "th data check pass." << std::endl;
+    else
+      log << "[LOG] " << __FUNCTION__ << ", " << __LINE__ <<
+             ": " << m << "th data check fail." << std::endl;
+
+    log << "[LOG] " << __FUNCTION__ << ", " << __LINE__ <<
+           ": Ref data, " << ref << "; Compute data, " << out <<
+           std::endl; 
+  }
+ 
+  free(ref_out);
+  fc_out.close();
+  return;
+}
+
+
+/* Check bias in FC layer */
+void fc_bias_check(Dtype *Param, Dtype *BBuf, int Len)
+{
+  std::ofstream log("check_fc_bias.log", std::ios::app);
+  for (int n = 0; n < Len; n++){
+    Dtype ref = Param[n];
+    Dtype bias = BBuf[n];
+    if (ref == bias){
+      log << "[LOG] " << __FUNCTION__ << ", " << __LINE__ <<
+             ": " << n << "th bias check pass." << std::endl;
+    }
+    else{
+      log << "[LOG] " << __FUNCTION__ << ", " << __LINE__ <<
+             ": " << n << "th bias check pass." << std::endl;
+    }
+    log << "[LOG] " << __FUNCTION__ << ", " << __LINE__ <<
+           ": Ref, " << ref << "; On-chip, " << bias <<
+           std::endl;
+  }
+
+  return;
+}
+
+/* Check input in FC layer */
+void fc_inbuf_check(Dtype *In, Dtype BufferA[BUFA_DEPTH], int Len)
+{
+  std::ofstream log("check_fc_inbuf.log", std::ios::app);
+  for (int n = 0; n < Len; n++){
+    Dtype ref = In[n];
+    Dtype data = BufferA[n];
+    if (ref == data){
+      log << "[LOG] " << __FUNCTION__ << ", " << __LINE__ <<
+             ": " << n << "th data check pass." << std::endl;
+    }
+    else{
+      log << "[LOG] " << __FUNCTION__ << ", " << __LINE__ <<
+             ": " << n << "th data check pass." << std::endl;
+    }
+    log << "[LOG] " << __FUNCTION__ << ", " << __LINE__ <<
+           ": Ref data, " << ref << "; On-chip data, " << data <<
+           std::endl;
+  }
+
+  return;
+}
+
+/* Check weight in FC layer */
+void fc_weight_check(Dtype *Param, Dtype WBuf[128][1024], int ONum)
+{
+  std::ofstream log("check_fc_weight.log", std::ios::app);
+  for (int m = 0; m < ONum; m++){
+    for (int n = 0; n < 128; n++){
+      Dtype ref = *Param++;
+      Dtype weight = WBuf[n][m];
+      if (ref == weight){
+        log << "[LOG] " << __FUNCTION__ << ", " << __LINE__ <<
+               ": " << m << "th inchnl, " << 
+                       n << "th ochnl weight check pass." << std::endl;
+      }
+      else{
+        log << "[LOG] " << __FUNCTION__ << ", " << __LINE__ <<
+               ": " << m << "th inchnl, " << 
+                       n << "th ochnl weight check pass." << std::endl;
+      }
+      log << "[LOG] " << __FUNCTION__ << ", " << __LINE__ <<
+             ": Ref, " << ref << "; On-chip, " << weight <<
+             std::endl;
+    }
+  }
+  return;
+}

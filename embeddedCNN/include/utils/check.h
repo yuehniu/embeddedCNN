@@ -22,6 +22,12 @@
 
 #include "../../include/common.h"
 
+/* check on ARM CPU? */
+//#define CHECK_CPU_CONV
+//#define CHECK_FPGA_CONV
+//#define CHECK_CPU_FC
+#define CHECK_FPGA_FC
+
 #define REL_ERR 0.03
 #define ABS_ERR 2
 
@@ -64,4 +70,13 @@ void onchip_check(Dtype *Ref, Dtype *Chip, int OChnl);
 
 /* Check computing result */
 void computing_check(Dtype *Out, int Lyr, bool Pooling);
+
+/* Check output from FC */
+void fc_check(Dtype *Out, int Lyr);
+
+void fc_bias_check(Dtype *Param, Dtype *BBuf, int Len);
+
+void fc_inbuf_check(Dtype *In, Dtype BufferA[BUFA_DEPTH], int Len);
+
+void fc_weight_check(Dtype *Param, Dtype WBuf[128][1024], int ONum);
 #endif
