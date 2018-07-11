@@ -18,7 +18,11 @@
 #include "hls_half.h"
 
 /* Data type */
+#define ATOM_NUM 1
 typedef half Dtype;
+typedef struct idata_struct{
+  Dtype d0;
+} IData;
 
 /* Network definition for VGG16 */
 #define CLASS_NUM 1000
@@ -43,7 +47,7 @@ typedef half Dtype;
 // Note the buffer depth is closely related to kernel size,
 // input and output kernel number
 #define W_BUF_DEPTH 1152
-#define B_BUF_DEPTH 512
+#define B_BUF_DEPTH 16
 // Define buffer depth for output
 // Note this buffer depth is also closely related to model,
 // mainly including maximum output channel number.

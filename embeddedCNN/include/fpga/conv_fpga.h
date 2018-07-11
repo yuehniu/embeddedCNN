@@ -25,8 +25,9 @@
 // Conv in Xilinx FPGA
 #pragma SDS data access_pattern(In:SEQUENTIAL, Param:SEQUENTIAL, Out:SEQUENTIAL)
 #pragma SDS data mem_attribute(In:PHYSICAL_CONTIGUOUS, Param:PHYSICAL_CONTIGUOUS, Out:PHYSICAL_CONTIGUOUS)
-#pragma SDS data copy(Param[0:OChnl+IChnl*OChnl*Kern*Kern], Out[0:OChnl*RowNum*ColNum/PoolDiv])
-#pragma SDS data zero_copy(In[0:IChnl*RowNum*ColNum])
+#pragma SDS data copy(In[0:IChnl*RowNum*ColNum], Param[0:OChnl+IChnl*OChnl*Kern*Kern], Out[0:OChnl*RowNum*ColNum/PoolDiv])
+//#pragma SDS data buffer_depth(Param:5120, Out:8196)
+//#pragma SDS data zero_copy(In[0:IChnl*RowNum*ColNum])
 void conv_fpga(
   Dtype *In,    // Variable DMA transfer length 
   Dtype *Param, // Variable DMA transfer length
@@ -61,8 +62,7 @@ void conv_buf_read(
 // Conv in input channel
 void conv_ichnl(Dtype *In,
   Dtype *Param,
-  Dtype BBuf[B_BUF_DEPTH],
-  Dtype OutBuf[OTILE][O_BUF_DEPTH],
+  Dtype *Out,
   int IChnlTil,
   int OChnlTil,
   int IChnl,
@@ -76,14 +76,15 @@ void conv_ichnl(Dtype *In,
   int ColNum,
   int RowsRead,
   int RowsValid,
-  int Rows
+  int Rows,
+  bool Pool,
+  int RowsWrite
 );
 // Conv in output channel
 void conv_ochnl(
   Dtype *Param,
   Dtype InBuf[ITILE][I_BUF_DEPTH],
-  Dtype BBuf[B_BUF_DEPTH],
-  Dtype OutBuf[OTILE][O_BUF_DEPTH],
+  Dtype *Out,
   int IChnlTil,
   int OChnlTil,
   int OChnl,
@@ -94,7 +95,10 @@ void conv_ochnl(
   int Til,
   int Lyr,
   int RowNum,
-  int ColNum
+  int ColNum,
+  bool Pool,
+  bool Write,
+  int RowsWrite
 );
 
 // Read weight
@@ -108,13 +112,13 @@ void conv_weight_read(
   bool Read
 );
 // Read bias
-void conv_bias_read(Dtype *Param, Dtype Bbuf[B_BUF_DEPTH], int OChnl);
+void conv_bias_read(Dtype *Param, Dtype Bbuf[OTILE][B_BUF_DEPTH], int OChnl);
 
 // Parallel computing unit
 void conv_compute(
   Dtype InBuf[ITILE][I_BUF_DEPTH],
   Dtype WBuf[OTILE * ITILE][W_BUF_DEPTH],
-  Dtype BBuf[B_BUF_DEPTH],
+  Dtype BBuf[OTILE][B_BUF_DEPTH],
   Dtype OutBuf[OTILE][O_BUF_DEPTH],
   int RowNum,
   int ColNum,

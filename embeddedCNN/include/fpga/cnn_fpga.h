@@ -26,4 +26,7 @@
 /* Top cnn module in Xilinx FPGA platform */
 void cnn_fpga(Dtype *In, Dtype *Out, Dtype *Params);
 
+/* Rearrange memory */
+void mem_rearr(Dtype *In, Dtype *Out, int Lyr, int TilNum);
+
 #endif

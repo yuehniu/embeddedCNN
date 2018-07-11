@@ -51,14 +51,14 @@ void conv_fpga(
   bool Pool     // Whether pooling
 )
 {
-  Dtype out_buf[OTILE][O_BUF_DEPTH];
-  #pragma HLS array_partition variable=out_buf complete dim=1
+  //Dtype out_buf[OTILE][O_BUF_DEPTH];
+  //#pragma HLS array_partition variable=out_buf complete dim=1
 
   //Dtype pool_buf[OTILE][FTILE_W * O_BUF_SEC / 2];
   //#pragma HLS array_partition variable=pool_buf complete dim=1
 
-  Dtype b_buf[B_BUF_DEPTH];
-  #pragma HLS array_partition variable=b_buf complete
+  //Dtype b_buf[B_BUF_DEPTH];
+  //#pragma HLS array_partition variable=b_buf complete
  
   int out_offset = 0;
   int itile = Lyr == 0 ? 3 : ITILE;
@@ -84,14 +84,14 @@ void conv_fpga(
   }
 
   // Read bias first
-  conv_bias_read(Param, b_buf, OChnl);
+  //conv_bias_read(Param, b_buf, OChnl);
   #ifdef CHECK_CPU
   // b_buf check
-  std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
-               ": Check BBuf." << std::endl;
-  conv_bias_check(Param, b_buf, OChnl);
+  //std::cout << "[INFO] " << __FUNCTION__ << ", " << __LINE__ << 
+  //             ": Check BBuf." << std::endl;
+  //conv_bias_check(Param, b_buf, OChnl);
   #endif
-  Param += OChnl;
+  //Param += OChnl;
   for (int til = 0; til < TilNum; til++) { /* Row loop */
   //#pragma HLS DATAFLOW
   #pragma HLS loop_tripcount min=224 max=224
@@ -108,7 +108,7 @@ void conv_fpga(
     int rows_write = (TilNum-1 == til ? rows_last + rows_pre + 1: rows) - Kern + 1;
 
     conv_ichnl(
-      In, Param, b_buf, out_buf,
+      In, Param, Out + out_offset,
       itile,
       OTILE,
       IChnl,
@@ -122,26 +122,20 @@ void conv_fpga(
       ColNum,
       rows_new,
       rows_valid,
-      rows_compute
+      rows_compute,
+      Pool,
+      rows_write
     );
 
     In += IChnl * rows_valid * ColNum;
     
-    // Write on-chip data to external mem
-    conv_buf_write(
-      out_buf, Out + out_offset, 
-      Pool,         // Whether pooling
-      rows_write,
-      ColNum,       // Col number in cur layer
-      OSec
-    );
+
     if (Pool){
       out_offset += OChnl * rows_write * ColNum >> 2;
     }
     else{
       out_offset += OChnl * rows_write * ColNum;
     }
-
     // Conv op 
   }/* Row loop */
 
@@ -215,7 +209,9 @@ void conv_buf_read(
                 (Dtype)0.0;
           }
           else{
-            Dtype data = *(In + r * IChnl * (ColNum-2) + n * (ColNum-2) + c-1);
+            //Dtype data = *(In + r * IChnl * (ColNum-2) + n * (ColNum-2) + c-1);
+            Dtype data = *In++;
+            //Dtype data = (Dtype)0.0;
             InBuf[n][(r+RowsPre) * ColNum + c] = data;
             if (r >= RowsValid - 2)
               in_pre[n][Sec * 2 * ColNum + (r-RowsValid+2 ) * ColNum + c]  = 
@@ -238,7 +234,6 @@ void conv_buf_read(
 
     In, input data.
     Param, parameters.
-    BBuf, bias buffer.
     OutBuf, output buffer.
     IChnlTil, input channel tile.
     OChnlTil, output channel tile.
@@ -258,8 +253,7 @@ void conv_buf_read(
 void conv_ichnl(
   Dtype *In,
   Dtype *Param,
-  Dtype BBuf[B_BUF_DEPTH],
-  Dtype OutBuf[OTILE][O_BUF_DEPTH],
+  Dtype *Out,
   int IChnlTil,
   int OChnlTil,
   int IChnl,
@@ -273,7 +267,9 @@ void conv_ichnl(
   int ColNum,
   int RowsRead,
   int RowsValid,
-  int Rows
+  int Rows,
+  bool Pool,
+  int RowsWrite
 )
 {
   // Set on-chip buffer
@@ -281,11 +277,11 @@ void conv_ichnl(
   #pragma HLS array_partition variable=in_buf complete dim=1
 
   for (int n = 0; n < ISec; n++){ /* Input channel */
-  //#pragma HLS DATAFLOW
+  #pragma HLS DATAFLOW
   #pragma HLS loop_tripcount min=4 max=4
     // Read input feature
     conv_buf_read(
-      In + (n << ITILSHFT) * ColNum, 
+      In + (n << ITILSHFT) * RowsValid * ColNum, 
       in_buf, 
       IChnlTil,
       IChnl,
@@ -309,7 +305,7 @@ void conv_ichnl(
     #endif
 
     conv_ochnl(
-      Param, in_buf, BBuf, OutBuf,
+      Param, in_buf, Out,
       IChnlTil,
       OTILE,
       OChnl,
@@ -320,7 +316,10 @@ void conv_ichnl(
       Til,
       Lyr,
       Rows,
-      ColNum + 2
+      ColNum,
+      Pool,
+      ISec - 1 == n,
+      RowsWrite
     );
   }
 
@@ -351,8 +350,7 @@ void conv_ichnl(
 void conv_ochnl(
   Dtype *Param,
   Dtype InBuf[ITILE][I_BUF_DEPTH],
-  Dtype BBuf[B_BUF_DEPTH],
-  Dtype OutBuf[OTILE][O_BUF_DEPTH],
+  Dtype *Out,
   int IChnlTil,
   int OChnlTil,
   int OChnl,
@@ -363,19 +361,31 @@ void conv_ochnl(
   int Til,
   int Lyr,
   int RowNum,
-  int ColNum
+  int ColNum,
+  bool Pool,
+  bool Write,
+  int RowsWrite
 )
 {
   static Dtype w_buf[OTILE * ITILE][W_BUF_DEPTH];
   #pragma HLS array_partition variable=w_buf complete dim=1
 
+  static Dtype b_buf[OTILE][B_BUF_DEPTH];
+  #pragma HLS array_partition variable=b_buf complete dim=1
+
+  static Dtype out_buf[OTILE][O_BUF_DEPTH];
+  #pragma HLS array_partition variable=out_buf complete dim=1
+
+  if (0 == Til && 0 == Ni){
+    conv_bias_read(Param, b_buf, OSec);
+  }
   for(int m = 0; m < OSec; m++){ /* Output channel */
   //#pragma HLS DATAFLOW
-  #pragma HLS loop_tripcount min=4 max=4
+  #pragma HLS loop_tripcount min=2 max=2
     // Conditional read weights 
     if (0 == Til || (Lyr > 12))
       conv_weight_read(
-        Param + ((Ni<<ITILSHFT) * OChnl + (m<<OTILSHFT) * IChnlTil) * Kern * Kern, 
+        Param + OChnl + ((Ni<<ITILSHFT) * OChnl + (m<<OTILSHFT) * IChnlTil) * Kern * Kern, 
         w_buf, 
         IChnlTil,
         OTILE,
@@ -403,10 +413,10 @@ void conv_ochnl(
     conv_compute(
       InBuf, 
       w_buf, 
-      BBuf, 
-      OutBuf, 
+      b_buf, 
+      out_buf, 
       RowNum,
-      ColNum, 
+      ColNum + 2, 
       Kern, 
       IChnlTil, 
       OTILE, 
@@ -418,6 +428,17 @@ void conv_ochnl(
 
     //m_i += 1;
   }/* Output channel */  
+
+  // Write on-chip data to external mem
+  if (Write) {
+    conv_buf_write(
+      out_buf, Out, 
+      Pool,         // Whether pooling
+      RowsWrite,
+      ColNum,       // Col number in cur layer
+      OSec
+    );
+  }
   return;
 }
 /*
@@ -456,11 +477,11 @@ void conv_weight_read(
   #pragma HLS loop_tripcount min=32 max=32
    for (int n = 0; n < IChnlTil; n++) {
    #pragma HLS loop_tripcount min=16 max=16
-     for (int k = 0; k < Kern * Kern; k++)
+     for (int k = 0; k < Kern * Kern; k++){
      #pragma HLS loop_tripcount min=9 max=9
      #pragma HLS PIPELINE
-       if(Read)
-         Wbuf[m * ITILE + n][Sec * Kern * Kern + k] = *Param++;
+       Wbuf[m * ITILE + n][Sec * Kern * Kern + k] = *Param++;
+     }
    }
   }
 
@@ -476,12 +497,15 @@ void conv_weight_read(
     Bbuf, on-chip bias buffer
     OChnl,output channel to read 
 */
-void conv_bias_read(Dtype *Param, Dtype Bbuf[B_BUF_DEPTH], int OChnl)
+void conv_bias_read(Dtype *Param, Dtype Bbuf[OTILE][B_BUF_DEPTH], int OChnlTil)
 {
-  for (int n = 0; n < OChnl; n++){
-  #pragma HLS PIPELINE
-  #pragma HLS loop_tripcount min=64 max=64
-    Bbuf[n] = *Param++;
+  for (int til = 0; til < OChnlTil; til++){
+  #pragma HLS loop_tripcount min=2 max=2
+    for (int m = 0; m < OTILE; m++){
+    #pragma HLS loop_tripcount min=32 max=32
+    #pragma HLS PIPELINE
+      Bbuf[m][til] = *Param++;
+    }
   }
 
   return;
@@ -517,7 +541,7 @@ void conv_bias_read(Dtype *Param, Dtype Bbuf[B_BUF_DEPTH], int OChnl)
 void conv_compute(
   Dtype InBuf[ITILE][I_BUF_DEPTH],
   Dtype WBuf[OTILE * ITILE][W_BUF_DEPTH],
-  Dtype BBuf[B_BUF_DEPTH],
+  Dtype BBuf[OTILE][B_BUF_DEPTH],
   Dtype OutBuf[OTILE][O_BUF_DEPTH],
   int RowNum,
   int ColNum,
@@ -540,6 +564,7 @@ void conv_compute(
   int rows_valid = RowNum - Kern + 1;
   int cols_valid = ColNum - Kern + 1;
   for (int row = 0; row < rows_valid; row++){ /* Row */
+  #pragma HLS loop_tripcount min=2 max=2
     for (int col = 0; col < cols_valid; col++) { /* Col */
     #pragma HLS loop_tripcount min=224 max=224
       // Computing partial sum
@@ -552,14 +577,14 @@ void conv_compute(
            //#pragma HLS UNROLL
            //#pragma HLS dependence variable=OutBuf inter false
              if(LoadBias && 0 == k1 && 0 == k2)  
-               partial[m] = BBuf[OSec * OTILE + m];
+               partial[m] = BBuf[m][OSec];
              else
                partial[m] = 0.0;
              for (int n = 0; n < ITILE; n++) { /* In channel */
              //#pragma HLS UNROLL
-               Dtype input = 0.0;
-               if (n < IChnlTil)
-                 input = InBuf[n][(row + k1) * ColNum + col + k2];
+               //Dtype input = 0.0;
+               //if (n < IChnlTil)
+               Dtype input = InBuf[n][(row + k1) * ColNum + col + k2];
 
                Dtype weight = 0.0;
                if (n < IChnlTil)
@@ -617,9 +642,13 @@ void conv_buf_write(
 {
   int row_strd = Pool ? 2 : 1;
   for (int row = 0; row < RowNum; row+=row_strd){
+  #pragma HLS loop_tripcount min=2 max=2
     for (int m = 0; m < OSec; m++){
+    #pragma HLS loop_tripcount min=2 max=2
       for (int m_i = 0; m_i < OTILE; m_i++){
+      #pragma HLS loop_tripcount min=32 max=32
         for (int col = 0; col < ColNum; col+=2) {
+        #pragma HLS loop_tripcount min=112 max=112
         #pragma HLS PIPELINE
           Dtype data00 = OutBuf[m_i][m * RowNum * ColNum + row * ColNum + col];
           Dtype data01 = OutBuf[m_i][m * RowNum * ColNum + row * ColNum + col + 1];
