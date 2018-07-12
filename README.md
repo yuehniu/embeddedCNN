@@ -10,8 +10,8 @@ Board: Xilinx Ultrascale+ ZCU 102
 ## FPGA system
 
 Data type: only float16 now!  
-Working frequency: 200MHz  
-Data motion network frequency: 200MHz 
+Working frequency: 300MHz  
+Data motion network frequency: 300MHz 
 
 ## Version
 
@@ -41,4 +41,10 @@ parallel pes.
 
 conv.v0.0:
 
-  This version targets for VGGNet-16. 
+  This version targets for VGGNet-16. It takes 1.2s to finish total VGGNet-16, 
+  running under 200MHz.
+
+conv.v0.1:
+
+  This version target for VGGNet-16. It takes 700ms to finish total VGGNet-16, 
+  running under 300MHz.
